@@ -2,28 +2,23 @@
 
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
-import { db } from "@/lib/db/drizzle"; // Adjust path
+import { db } from "@/lib/db/drizzle";
 import {
-  User,
   users,
   teams,
   team_members,
-  activityLogs,
   invitations,
   organizations,
-  NewUser,
-  NewTeam,
-  NewTeamMember,
   NewActivityLog,
   ActivityType,
   userRole,
   Team,
-} from "@/lib/db/schema"; // Adjust path
-import { comparePasswords, hashPassword, setSession } from "@/lib/auth/session"; // Adjust path
+} from "@/lib/db/schema";
+import { comparePasswords, hashPassword, setSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { sendWelcomeEmail } from "@/lib/email/email-services"; // Adjust path
-import { createCheckoutSession } from "@/lib/payments/stripe"; // Adjust path
+import { sendWelcomeEmail } from "@/lib/email/email-services";
+import { createCheckoutSession } from "@/lib/payments/stripe";
 import {
   getUser,
   getUserWithTeam,
@@ -34,7 +29,7 @@ import {
   createActivityLog,
   getUserByEmail,
   createInvitation,
-} from "@/lib/db/queries"; // Adjust path to queries.ts
+} from "@/lib/db/queries";
 import {
   validatedAction,
   validatedActionWithUser,

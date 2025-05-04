@@ -1,4 +1,3 @@
-import { stripe } from "../payments/stripe";
 import { db } from "./drizzle";
 import {
   organizations,
@@ -6,177 +5,125 @@ import {
   teams,
   team_members,
   plans,
+  activityLogs,
   userRole,
+  ActivityType,
 } from "./schema";
+import { stripe } from "../payments/stripe";
 import { hashPassword } from "@/lib/auth/session";
-import { v4 as uuidv4 } from "uuid"; // For generating UUIDs if needed
-import { addDays } from "date-fns"; // For precise date calculations
+import { v4 as uuidv4 } from "uuid";
+import { addDays, getUnixTime } from "date-fns";
 
-async function createStripeProductsAndPrices() {
-  console.log("Creating Stripe products and prices...");
+export async function seed() {
+  console.log("🌱 Starting seed...");
 
-  // Create Base plan
-  const premiumProduct = await stripe.products.create({
-    name: "Premium",
-    description: "Premium subscription plan",
+  // --- 1. Create Stripe Products and Prices ---
+  console.log("📦 Creating Stripe products and prices...");
+
+  const stripeProducts = [
+    { name: "Premium", amount: 800 },
+    { name: "Plus", amount: 1200 },
+  ];
+
+  const planIds: string[] = [];
+
+  for (const prod of stripeProducts) {
+    const product = await stripe.products.create({
+      name: prod.name,
+      description: `${prod.name} subscription plan`,
+    });
+
+    const price = await stripe.prices.create({
+      product: product.id,
+      unit_amount: prod.amount,
+      currency: "usd",
+      recurring: { interval: "month", trial_period_days: 7 },
+    });
+
+    const plan = await db
+      .insert(plans)
+      .values({
+        name: prod.name,
+        price: prod.amount,
+        stripePriceId: price.id,
+      })
+      .returning({ id: plans.id });
+
+    planIds.push(plan[0].id);
+  }
+
+  // --- 2. Create Organization ---
+  console.log("🏢 Creating organization...");
+
+  const organizationId = uuidv4();
+  const orgSubdomain = "acme";
+
+  const organization = await db
+    .insert(organizations)
+    .values({
+      id: organizationId,
+      name: "Acme Inc.",
+      subdomain: orgSubdomain,
+      planId: planIds[0],
+      stripeCustomerId: "test_cus_123",
+      stripeProductId: "test_prod_123",
+      stripeSubscriptionId: "test_sub_123",
+      stripeSubscriptionPriceId: "test_price_123",
+      stripeSubscriptionStatus: "active",
+      stripeSubscriptionCurrentPeriodEnd: getUnixTime(addDays(new Date(), 30)),
+    })
+    .returning({ id: organizations.id });
+
+  // --- 3. Create Admin User ---
+  console.log("👤 Creating user...");
+
+  const password = await hashPassword("admin123");
+
+  const userId = uuidv4();
+  const user = await db
+    .insert(users)
+    .values({
+      id: userId,
+      email: "admin@acme.com",
+      name: "Admin User",
+      passwordHash: password,
+      role: "super_admin",
+      organizationId: organization[0].id,
+    })
+    .returning({ id: users.id });
+
+  // --- 4. Create Team ---
+  console.log("👥 Creating team...");
+
+  const teamId = uuidv4();
+  const team = await db
+    .insert(teams)
+    .values({
+      id: teamId,
+      name: "Founders",
+      organizationId: organization[0].id,
+      leadId: user[0].id,
+    })
+    .returning({ id: teams.id });
+
+  // --- 5. Add team member ---
+  console.log("➕ Adding user to team...");
+
+  await db.insert(team_members).values({
+    teamId: team[0].id,
+    userId: user[0].id,
   });
 
-  const premiumPrice = await stripe.prices.create({
-    product: premiumProduct.id,
-    unit_amount: 800, // $8.00
-    currency: "usd",
-    recurring: {
-      interval: "month",
-      trial_period_days: 7,
-    },
+  // --- 6. Activity Log ---
+  console.log("📋 Logging activity...");
+
+  await db.insert(activityLogs).values({
+    id: uuidv4(),
+    teamId: team[0].id,
+    userId: user[0].id,
+    action: ActivityType.SIGN_UP,
+    ipAddress: "127.0.0.1",
   });
 
-  // Create Plus plan
-  const plusProduct = await stripe.products.create({
-    name: "Plus",
-    description: "Plus subscription plan",
-  });
-
-  const plusPrice = await stripe.prices.create({
-    product: plusProduct.id,
-    unit_amount: 1200, // $12.00
-    currency: "usd",
-    recurring: {
-      interval: "month",
-      trial_period_days: 7,
-    },
-  });
-
-  // Insert plans and return their IDs
-  const [PremiumPlan] = await db
-    .insert(plans)
-    .values([
-      {
-        id: uuidv4(), // Explicitly generate UUID
-        name: "Premium",
-        price: 1200,
-        stripePriceId: premiumPrice.id,
-        description: "Premium plan with super advanced features",
-      },
-    ])
-    .returning();
-
-  return { PremiumPlan };
+  console.log("✅ Seed completed.");
 }
-
-async function seed() {
-  // Use a transaction to ensure atomicity
-  return await db.transaction(async (tx) => {
-    try {
-      const email = "admin@acme.com";
-      const password = "admin123";
-      const superAdminPassword = "super123";
-      const superAdminEmail = "super@gmail.com";
-      const leadEmail = "lead@gmail.com";
-      const leadPassword = "lead123";
-
-      const leadPasswordHash = await hashPassword(leadPassword);
-      const superAdminPasswordHash = await hashPassword(superAdminPassword);
-      const passwordHash = await hashPassword(password);
-
-      // Create Stripe products and plans
-      const { PremiumPlan } = await createStripeProductsAndPrices();
-
-      // Generate a unique subdomain
-      const organizationName = "LeadWorld Inc.";
-      const subdomain = organizationName
-        .toLowerCase()
-        .replace(/[^a-z0-9-]/g, "-")
-        .replace(/^-+|-+$/g, ""); // Simple subdomain generation
-
-      // Insert organization
-      const [org] = await tx
-        .insert(organizations)
-        .values({
-          id: uuidv4(),
-          name: organizationName,
-          subdomain,
-          planId: PremiumPlan.id, // Use UUID from inserted plan
-          stripeCustomerId: null, // Use null for testing
-          stripeSubscriptionId: null,
-          stripeSubscriptionPriceId: PremiumPlan.stripePriceId,
-          stripeSubscriptionStatus: "trialing",
-          stripeSubscriptionCurrentPeriodEnd: addDays(new Date(), 30).getTime(), // 30 days from now
-        })
-        .returning();
-
-      // // Insert admin user
-      // const [adminUser] = await tx
-      //   .insert(users)
-      //   .values({
-      //     id: uuidv4(),
-      //     email,
-      //     name: "Admin User",
-      //     passwordHash,
-      //     role: userRole.enumValues[1], // "org_admin"
-      //     organizationId: org.id,
-      //   })
-      //   .returning();
-
-      const [SuperAdminUser] = await tx
-        .insert(users)
-        .values({
-          id: uuidv4(),
-          email: superAdminEmail,
-          name: "Super Admin User",
-          passwordHash: superAdminPasswordHash,
-          role: userRole.enumValues[0], // "super_admin"
-          organizationId: org.id,
-        })
-        .returning();
-
-      const [LeadUser] = await tx
-        .insert(users)
-        .values({
-          id: uuidv4(),
-          email: leadEmail,
-          name: "Lead User",
-          passwordHash: leadPasswordHash,
-          role: userRole.enumValues[2], // "team_lead"
-          organizationId: org.id,
-        })
-        .returning();
-
-      // Insert team
-      // const [team] = await tx
-      //   .insert(teams)
-      //   .values({
-      //     id: uuidv4(),
-      //     name: "Founders Team",
-      //     organizationId: org.id,
-      //     leadId: adminUser.id, // Set admin as team lead
-      //   })
-      //   .returning();
-
-      // // Insert team membership
-      // await tx.insert(team_members).values({
-      //   userId: adminUser.id,
-      //   teamId: team.id,
-      //   joinedAt: new Date(),
-      // });
-
-      console.log(
-        "Seed complete: organization, user, team, plans, and team membership created."
-      );
-    } catch (error) {
-      console.error("Error during seeding:", error);
-      throw error; // Roll back transaction on error
-    }
-  });
-}
-
-// Run the seed script
-seed()
-  .then(() => {
-    console.log("Seed script finished successfully.");
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error("Seeding failed:", error);
-    process.exit(1);
-  });

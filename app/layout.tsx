@@ -5,19 +5,11 @@ import { getUser, getTeamForUser } from "@/lib/db/queries";
 import { SWRConfig } from "swr";
 
 export const metadata: Metadata = {
-  title: "Lead Management Saas",
+  title: "Nextjs SaaS Boilerplate",
   icons: {
     icon: "/favicon.ico",
   },
-  description: "Manage your leads and teams efficiently",
-  keywords: [
-    "lead management",
-    "team management",
-    "SaaS",
-    "productivity",
-    "analytics",
-    "growth",
-  ],
+  description: "Implemente your saas with this boilerplate",
 };
 
 export const viewport: Viewport = {

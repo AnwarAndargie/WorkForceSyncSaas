@@ -5,12 +5,9 @@ import {
   organizations,
   teams,
   team_members,
-  leads,
   plans,
   invitations,
   activityLogs,
-  userRole,
-  invitationStatus,
   User,
   NewUser,
   Organization,
@@ -19,8 +16,6 @@ import {
   NewTeam,
   TeamMember,
   NewTeamMember,
-  Lead,
-  NewLead,
   Plan,
   NewPlan,
   Invitation,
@@ -224,13 +219,6 @@ export async function getTeamForUser(): Promise<Team | null> {
               },
             },
           },
-          lead: {
-            columns: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
         },
       },
     },
@@ -299,47 +287,6 @@ export async function deleteTeamMember(
     .where(
       and(eq(team_members.userId, userId), eq(team_members.teamId, teamId))
     );
-}
-
-// ---------- LEADS CRUD ----------
-// Create lead
-export async function createLead(data: NewLead): Promise<Lead> {
-  const [lead] = await db.insert(leads).values(data).returning();
-  return lead;
-}
-
-// Read lead by ID
-export async function getLeadById(id: string): Promise<Lead | null> {
-  const [lead] = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
-  return lead || null;
-}
-
-// Read leads for team
-export async function getLeadsForTeam(teamId: string): Promise<Lead[]> {
-  return await db.select().from(leads).where(eq(leads.teamId, teamId));
-}
-
-// Read leads for organization
-export async function getLeadsForOrganization(orgId: string): Promise<Lead[]> {
-  return await db.select().from(leads).where(eq(leads.organizationId, orgId));
-}
-
-// Update lead
-export async function updateLead(
-  id: string,
-  data: Partial<NewLead>
-): Promise<Lead | null> {
-  const [lead] = await db
-    .update(leads)
-    .set(data)
-    .where(eq(leads.id, id))
-    .returning();
-  return lead || null;
-}
-
-// Delete lead
-export async function deleteLead(id: string): Promise<void> {
-  await db.delete(leads).where(eq(leads.id, id));
 }
 
 // ---------- PLANS CRUD ----------
@@ -531,13 +478,6 @@ export async function getTeamWithMembersAndLead(
               email: true,
             },
           },
-        },
-      },
-      lead: {
-        columns: {
-          id: true,
-          name: true,
-          email: true,
         },
       },
     },

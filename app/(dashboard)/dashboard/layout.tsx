@@ -35,22 +35,10 @@ export default function DashboardLayout({
 
   const isSuperAdmin = user.role === "super_admin";
   const isOrgAdmin = user.role === "org_admin";
-  const isTeamMember = user.role === "team_lead" || user.role === "member";
 
   const navItems = [
     { href: "/dashboard", label: "Overview", icon: Home, visible: true },
-    {
-      href: "/dashboard/leads",
-      label: "Leads",
-      icon: Users,
-      visible: isOrgAdmin,
-    },
-    {
-      href: "/dashboard/quizzes",
-      label: "Quizzes",
-      icon: BookOpen,
-      visible: !isSuperAdmin,
-    },
+
     {
       href: "/dashboard/plans",
       label: "Plans",
@@ -85,7 +73,6 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-[calc(100dvh-68px)] max-w-7xl mx-auto w-full">
-      {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r transform ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -120,7 +107,6 @@ export default function DashboardLayout({
         </nav>
       </aside>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col">
         <header className="flex items-center justify-between p-4 border-b md:hidden">
           <Button
@@ -134,7 +120,6 @@ export default function DashboardLayout({
         <main className="flex-1 overflow-y-auto p-4">{children}</main>
       </div>
 
-      {/* Overlay for mobile */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden"

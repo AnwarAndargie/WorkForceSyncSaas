@@ -63,89 +63,6 @@ async function getOrganizationAnalytics(): Promise<{
   };
 }
 
-async function getUserQuizAnalytics(
-  userId: string,
-  teamId: string | null
-): Promise<{
-  totalQuizzes: number;
-  averageScore: number;
-  teamRank: number;
-}> {
-  return {
-    totalQuizzes: 10,
-    averageScore: 85,
-    teamRank: 3,
-  };
-}
-
-async function getUpcomingQuizzes(
-  userId: string,
-  limit: number = 5
-): Promise<Quiz[]> {
-  return [
-    {
-      id: "quiz-1",
-      title: "Team Quiz 1",
-      userId,
-      teamId: "team-123",
-      organizationId: "org-123",
-      score: 0,
-      totalQuestions: 20,
-      createdAt: new Date("2025-05-01"),
-    },
-    {
-      id: "quiz-2",
-      title: "Product Knowledge Quiz",
-      userId,
-      teamId: "team-123",
-      organizationId: "org-123",
-      score: 0,
-      totalQuestions: 15,
-      createdAt: new Date("2025-05-02"),
-    },
-    {
-      id: "quiz-3",
-      title: "Weekly Challenge",
-      userId,
-      teamId: "team-123",
-      organizationId: "org-123",
-      score: 0,
-      totalQuestions: 10,
-      createdAt: new Date("2025-05-03"),
-    },
-  ].slice(0, limit);
-}
-
-async function getUpcomingTasks(
-  userId: string,
-  limit: number = 5
-): Promise<Task[]> {
-  return [
-    {
-      id: "task-1",
-      title: "Complete Project Proposal",
-      description: "Draft the proposal for the new client.",
-      userId,
-      teamId: "team-123",
-      organizationId: "org-123",
-      dueDate: new Date("2025-05-10"),
-      isCompleted: false,
-      createdAt: new Date("2025-05-01"),
-    },
-    {
-      id: "task-2",
-      title: "Review Team Metrics",
-      description: "Analyze quiz performance for the team.",
-      userId,
-      teamId: "team-123",
-      organizationId: "org-123",
-      dueDate: new Date("2025-05-12"),
-      isCompleted: false,
-      createdAt: new Date("2025-05-02"),
-    },
-  ].slice(0, limit);
-}
-
 // Mock data for org_admin (same as provided)
 const leadData = Array.from({ length: 30 }, (_, i) => ({
   date: `Day ${i + 1}`,
@@ -153,7 +70,7 @@ const leadData = Array.from({ length: 30 }, (_, i) => ({
   converted: Math.floor(Math.random() * 30),
 }));
 
-const recentLeads = [
+const recentMembers = [
   {
     id: 1,
     name: "John Doe",
@@ -175,8 +92,8 @@ const recentLeads = [
 ];
 
 const quickActions = [
-  { icon: Upload, label: "Import Leads" },
-  { icon: Download, label: "Export Leads" },
+  { icon: Upload, label: "Import Members" },
+  { icon: Download, label: "Export Members" },
   { icon: FileText, label: "Generate Reports" },
   { icon: Settings, label: "System Settings" },
 ];
@@ -191,48 +108,9 @@ export default function DashboardPage() {
     activeSubscriptions: 30,
     totalRevenue: 1499.7,
   });
-  const [quizAnalytics, setQuizAnalytics] = useState<{
-    totalQuizzes: number;
-    averageScore: number;
-    teamRank: number;
-  } | null>({ totalQuizzes: 10, averageScore: 85, teamRank: 3 });
-  const [upcomingQuizzes, setUpcomingQuizzes] = useState<Quiz[]>([]);
-  const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([]);
+
   const [teamId, setTeamId] = useState<string | null>(null);
   const { data: user } = useSWR<User>("/api/user", fetcher);
-
-  // useEffect(() => {
-  //   async function fetchData() {
-  //     try {
-  //       const userData = await getUser();
-  //       if (!userData) {
-  //         throw new Error("User not found");
-  //       }
-  //       setUser(userData);
-
-  //       const userWithTeam = await getUserWithTeam();
-  //       setTeamId(userWithTeam?.teamId || null);
-
-  //       if (userData.role === "super_admin") {
-  //         const analytics = await getOrganizationAnalytics();
-  //         setOrgAnalytics(analytics);
-  //       } else if (["team_lead", "member"].includes(userData.role)) {
-  //         const quizData = await getUserQuizAnalytics(
-  //           userData.id,
-  //           userWithTeam?.teamId || null
-  //         );
-  //         const quizzes = await getUpcomingQuizzes(userData.id);
-  //         const tasks = await getUpcomingTasks(userData.id);
-  //         setQuizAnalytics(quizData);
-  //         setUpcomingQuizzes(quizzes);
-  //         setUpcomingTasks(tasks);
-  //       }
-  //     } catch (error) {
-  //       console.error("Error fetching dashboard data:", error);
-  //     }
-  //   }
-  //   fetchData();
-  // }, []);
 
   if (!user) {
     return <div>Loading...</div>;
@@ -240,7 +118,6 @@ export default function DashboardPage() {
 
   const isSuperAdmin = user.role === "super_admin";
   const isOrgAdmin = user.role === "org_admin";
-  const isTeamMember = user.role === "team_lead" || user.role === "member";
 
   return (
     <div className="flex-1 p-4 space-y-6">
@@ -305,9 +182,9 @@ export default function DashboardPage() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: "Total Leads", value: "1,200", change: "+10%" },
+              { label: "Total Users", value: "1,200", change: "+10%" },
               { label: "Conversion Rate", value: "25%", change: "-2%" },
-              { label: "Active Leads", value: "300", change: "+5%" },
+              { label: "Active Members", value: "300", change: "+5%" },
               { label: "Potential Revenue", value: "$15,000", change: "+8%" },
             ].map((metric, idx) => (
               <Card key={idx} className="p-4">
@@ -321,9 +198,9 @@ export default function DashboardPage() {
           </div>
           <Card>
             <CardHeader>
-              <CardTitle>Leads Overview</CardTitle>
+              <CardTitle>Members Overview</CardTitle>
               <p className="text-sm text-gray-500">
-                Lead acquisition and conversion over the last 30 days.
+                Member acquisition and conversion over the last 30 days.
               </p>
             </CardHeader>
             <CardContent className="h-72">
@@ -340,27 +217,27 @@ export default function DashboardPage() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Recent Leads</CardTitle>
+              <CardTitle>Recent Members</CardTitle>
             </CardHeader>
             <CardContent>
               <ul className="space-y-2">
-                {recentLeads.map((lead) => (
+                {recentMembers.map((member) => (
                   <li
-                    key={lead.id}
+                    key={member.id}
                     className="flex justify-between items-center"
                   >
                     <div>
-                      <p>{lead.name}</p>
-                      <p className="text-sm text-gray-500">{lead.email}</p>
+                      <p>{member.name}</p>
+                      <p className="text-sm text-gray-500">{member.email}</p>
                     </div>
                     <span className="text-sm text-gray-400">
-                      {lead.dateAdded}
+                      {member.dateAdded}
                     </span>
                   </li>
                 ))}
               </ul>
               <Button className="bg-orange-400 text-white hover:bg-orange-300 mt-3 cursor-pointer">
-                View All Leads
+                View All Members
               </Button>
             </CardContent>
           </Card>
@@ -408,89 +285,6 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </div>
-        </>
-      )}
-
-      {isTeamMember && quizAnalytics && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="p-4">
-              <CardTitle>Total Quizzes Completed</CardTitle>
-              <p className="text-2xl font-bold">{quizAnalytics.totalQuizzes}</p>
-              <p className="text-sm text-gray-500">All time</p>
-            </Card>
-            <Card className="p-4">
-              <CardTitle>Average Quiz Score</CardTitle>
-              <p className="text-2xl font-bold">
-                {quizAnalytics.averageScore.toFixed(1)}%
-              </p>
-              <p className="text-sm text-gray-500">Across all quizzes</p>
-            </Card>
-            <Card className="p-4">
-              <CardTitle>Team Rank</CardTitle>
-              <p className="text-2xl font-bold">{quizAnalytics.teamRank}</p>
-              <p className="text-sm text-gray-500">In your team</p>
-            </Card>
-          </div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Upcoming Quizzes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {upcomingQuizzes.length > 0 ? (
-                  upcomingQuizzes.map((quiz: Quiz) => (
-                    <li
-                      key={quiz.id}
-                      className="flex justify-between items-center"
-                    >
-                      <div>
-                        <p>{quiz.title}</p>
-                        <p className="text-sm text-gray-500">
-                          Created:{" "}
-                          {new Date(quiz.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        Start Quiz
-                      </Button>
-                    </li>
-                  ))
-                ) : (
-                  <p className="text-gray-500">No upcoming quizzes.</p>
-                )}
-              </ul>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Upcoming Tasks</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {upcomingTasks.length > 0 ? (
-                  upcomingTasks.map((task: Task) => (
-                    <li
-                      key={task.id}
-                      className="flex justify-between items-center"
-                    >
-                      <div>
-                        <p>{task.title}</p>
-                        <p className="text-sm text-gray-500">
-                          Due: {new Date(task.dueDate).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        Mark Complete
-                      </Button>
-                    </li>
-                  ))
-                ) : (
-                  <p className="text-gray-500">No upcoming tasks.</p>
-                )}
-              </ul>
-            </CardContent>
-          </Card>
         </>
       )}
     </div>

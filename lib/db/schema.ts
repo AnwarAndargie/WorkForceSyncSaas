@@ -52,6 +52,7 @@ export const organizations = pgTable("organizations", {
   planId: uuid("plan_id").references(() => plans.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow(),
   stripeCustomerId: text("stripe_customer_id"),
+  stripeProductId: text("stripe_product_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   stripeSubscriptionPriceId: text("stripe_subscription_price_id"),
   stripeSubscriptionStatus: text("stripe_subscription_status"),
@@ -104,21 +105,6 @@ export const team_members = pgTable(
   })
 );
 
-// ---------- LEADS ----------
-export const leads = pgTable("leads", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  teamId: uuid("team_id")
-    .notNull()
-    .references(() => teams.id, { onDelete: "cascade" }),
-  organizationId: uuid("organization_id")
-    .notNull()
-    .references(() => organizations.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
 // ---------- ACTIVITY LOGS ----------
 export const activityLogs = pgTable("activity_logs", {
   id: uuid("id").primaryKey(),
@@ -169,7 +155,6 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   teamMembers: many(team_members),
   invitationsSent: many(invitations),
   activityLogs: many(activityLogs),
-  leads: many(leads),
 }));
 
 // ORGANIZATIONS RELATIONS
@@ -182,7 +167,6 @@ export const organizationsRelations = relations(
       fields: [organizations.planId],
       references: [plans.id],
     }),
-    leads: many(leads),
   })
 );
 
@@ -199,7 +183,6 @@ export const teamsRelations = relations(teams, ({ one, many }) => ({
   teamMembers: many(team_members),
   activityLogs: many(activityLogs),
   invitations: many(invitations),
-  leads: many(leads),
 }));
 
 // TEAM MEMBERS RELATIONS
@@ -211,22 +194,6 @@ export const teamMembersRelations = relations(team_members, ({ one }) => ({
   team: one(teams, {
     fields: [team_members.teamId],
     references: [teams.id],
-  }),
-}));
-
-// LEADS RELATIONS
-export const leadsRelations = relations(leads, ({ one }) => ({
-  user: one(users, {
-    fields: [leads.userId],
-    references: [users.id],
-  }),
-  team: one(teams, {
-    fields: [leads.teamId],
-    references: [teams.id],
-  }),
-  organization: one(organizations, {
-    fields: [leads.organizationId],
-    references: [organizations.id],
   }),
 }));
 
@@ -270,8 +237,6 @@ export type Team = typeof teams.$inferSelect;
 export type NewTeam = typeof teams.$inferInsert;
 export type TeamMember = typeof team_members.$inferSelect;
 export type NewTeamMember = typeof team_members.$inferInsert;
-export type Lead = typeof leads.$inferSelect;
-export type NewLead = typeof leads.$inferInsert;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
 export type Invitation = typeof invitations.$inferSelect;
@@ -285,7 +250,6 @@ export type TeamDataWithMembers = Team & {
   teamMembers: (TeamMember & {
     user: Pick<User, "id" | "name" | "email">;
   })[];
-  lead: Pick<User, "id" | "name" | "email">;
 };
 
 export enum ActivityType {
