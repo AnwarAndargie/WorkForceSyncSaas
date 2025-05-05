@@ -197,6 +197,10 @@ export async function updatePlan(
     .returning();
   return plan || null;
 }
+export const createPlan = async (data: NewPlan): Promise<Plan> => {
+  const [plan] = await db.insert(plans).values(data).returning();
+  return plan;
+};
 
 // Delete plan
 export async function deletePlan(id: string): Promise<void> {
