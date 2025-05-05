@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button"; // If using ShadCN
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react"; // If using ShadCN
 
 interface Organization {
   id: string;
@@ -18,25 +19,38 @@ export default function OrganizationsPage() {
 
   useEffect(() => {
     const fetchOrganizations = async () => {
-      const res = await fetch("/api/organizations");
-      const data = await res.json();
-      setOrganizations(data);
-      setLoading(false);
+      try {
+        const res = await fetch("/api/organization");
+        if (!res.ok) {
+          throw new Error("Failed to fetch organizations");
+        }
+        const data = await res.json();
+        setOrganizations(data);
+      } catch (error) {
+        console.error("Error fetching organizations:", error);
+      } finally {
+        setLoading(false); // ensure loading is set to false even on failure
+      }
     };
+
     fetchOrganizations();
   }, []);
 
   const handleDelete = async (id: string) => {
-    await fetch(`/api/organizations/${id}`, { method: "DELETE" });
+    await fetch(`/api/organization/${id}`, { method: "DELETE" });
     setOrganizations((prev) => prev.filter((org) => org.id !== id));
   };
 
   const handleEdit = (id: string) => {
-    router.push(`/organizations/${id}/edit`);
+    router.push(`/dashboard/organizations/${id}`);
   };
 
   if (loading) {
-    return <div className="p-6 text-gray-600">Loading organizations...</div>;
+    return (
+      <div className="flex items-center justify-center h-[80vh]">
+        <Loader2 className="w-16 h-16 animate-spin text-orange-500" />
+      </div>
+    );
   }
 
   return (
