@@ -1,10 +1,8 @@
-import { desc, and, eq, isNull, inArray } from "drizzle-orm";
+import { desc, and, eq } from "drizzle-orm";
 import { db } from "./drizzle";
 import {
   users,
   organizations,
-  teams,
-  team_members,
   plans,
   invitations,
   activityLogs,
@@ -12,17 +10,12 @@ import {
   NewUser,
   Organization,
   NewOrganization,
-  Team,
-  NewTeam,
-  TeamMember,
-  NewTeamMember,
   Plan,
   NewPlan,
   Invitation,
   NewInvitation,
   ActivityLog,
   NewActivityLog,
-  TeamDataWithMembers,
 } from "./schema";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth/session";
@@ -80,17 +73,8 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     .limit(1);
   return user || null;
 }
-
-// Update user
-// export async function updateUser(id: string, data: Partial<NewUser>): Promise<User | null> {
-//   const [user] = await db
-//     .update(users)
-//     .set({ ...data, updatedAt: new Date() })
-//     .where(eq(users.id, id))
-//     .returning();
-//   return user || null;
-// }
-
+export const updateUser = (id: string, data: Partial<NewUser>) =>
+  db.update(users).set(data).where(users.id.eq(id));
 // Delete user
 export async function deleteUser(id: string): Promise<void> {
   await db.delete(users).where(eq(users.id, id));
@@ -116,6 +100,9 @@ export async function getOrganizationById(
     .limit(1);
   return org || null;
 }
+
+export const getAllOrganizations = async (): Promise<Organization[]> =>
+  db.select().from(organizations);
 
 // Read organization by subdomain
 export async function getOrganizationBySubdomain(
@@ -178,129 +165,13 @@ export async function deleteOrganization(id: string): Promise<void> {
   await db.delete(organizations).where(eq(organizations.id, id));
 }
 
-// ---------- TEAMS CRUD ----------
-// Create team
-export async function createTeam(data: NewTeam): Promise<Team> {
-  const [team] = await db.insert(teams).values(data).returning();
-  return team;
-}
-
-// Read team by ID
-export async function getTeamById(id: string): Promise<Team | null> {
-  const [team] = await db.select().from(teams).where(eq(teams.id, id)).limit(1);
-  return team || null;
-}
-
-// Read teams for organization
-export async function getTeamsForOrganization(orgId: string): Promise<Team[]> {
-  return await db.select().from(teams).where(eq(teams.organizationId, orgId));
-}
-
-// Read team for user (updated from getTeamForUser)
-export async function getTeamForUser(): Promise<Team | null> {
-  const user = await getUser();
-  if (!user) {
-    return null;
-  }
-
-  const result = await db.query.team_members.findFirst({
-    where: eq(team_members.userId, user.id),
-    with: {
-      team: {
-        with: {
-          teamMembers: {
-            with: {
-              user: {
-                columns: {
-                  id: true,
-                  name: true,
-                  email: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  return result?.team || null;
-}
-
-// Update team
-export async function updateTeam(
-  id: string,
-  data: Partial<NewTeam>
-): Promise<Team | null> {
-  const [team] = await db
-    .update(teams)
-    .set(data)
-    .where(eq(teams.id, id))
-    .returning();
-  return team || null;
-}
-
-// Delete team
-export async function deleteTeam(id: string): Promise<void> {
-  await db.delete(teams).where(eq(teams.id, id));
-}
-
-// ---------- TEAM MEMBERS CRUD ----------
-// Create team member
-export async function createTeamMember(
-  data: NewTeamMember
-): Promise<TeamMember> {
-  const [member] = await db.insert(team_members).values(data).returning();
-  return member;
-}
-
-// Read team members for team
-export async function getTeamMembers(teamId: string): Promise<TeamMember[]> {
-  return await db
-    .select()
-    .from(team_members)
-    .where(eq(team_members.teamId, teamId));
-}
-
-// Read team member by user and team
-export async function getTeamMember(
-  userId: string,
-  teamId: string
-): Promise<TeamMember | null> {
-  const [member] = await db
-    .select()
-    .from(team_members)
-    .where(
-      and(eq(team_members.userId, userId), eq(team_members.teamId, teamId))
-    )
-    .limit(1);
-  return member || null;
-}
-
-// Delete team member
-export async function deleteTeamMember(
-  userId: string,
-  teamId: string
-): Promise<void> {
-  await db
-    .delete(team_members)
-    .where(
-      and(eq(team_members.userId, userId), eq(team_members.teamId, teamId))
-    );
-}
-
-// ---------- PLANS CRUD ----------
-// Create plan
-export async function createPlan(data: NewPlan): Promise<Plan> {
-  const [plan] = await db.insert(plans).values(data).returning();
-  return plan;
-}
-
 // Read plan by ID
 export async function getPlanById(id: string): Promise<Plan | null> {
   const [plan] = await db.select().from(plans).where(eq(plans.id, id)).limit(1);
   return plan || null;
 }
+
+export const getAllPlans = async (): Promise<Plan[]> => db.select().from(plans);
 
 // Read plan by Stripe price ID
 export async function getPlanByStripePriceId(
@@ -352,6 +223,9 @@ export async function getInvitationById(
     .limit(1);
   return invitation || null;
 }
+
+export const getAllInvitations = async (): Promise<Invitation[]> =>
+  db.select().from(invitations);
 
 // Read invitations for organization
 export async function getInvitationsForOrganization(
@@ -420,98 +294,7 @@ export async function getActivityLogsForUser(limit: number = 10): Promise<
     .limit(limit);
 }
 
-// Read activity logs for team
-export async function getActivityLogsForTeam(
-  teamId: string,
-  limit: number = 10
-): Promise<ActivityLog[]> {
-  return await db
-    .select()
-    .from(activityLogs)
-    .where(eq(activityLogs.teamId, teamId))
-    .orderBy(desc(activityLogs.timestamp))
-    .limit(limit);
-}
-
 // Delete activity log
 export async function deleteActivityLog(id: string): Promise<void> {
   await db.delete(activityLogs).where(eq(activityLogs.id, id));
-}
-
-// ---------- COMPOSITE QUERIES ----------
-// Get user with team (updated from getUserWithTeam)
-export async function getUserWithTeam(): Promise<{
-  user: User;
-  teamId: string | null;
-} | null> {
-  const user = await getUser();
-  if (!user) {
-    return null;
-  }
-
-  const result = await db
-    .select({
-      user: users,
-      teamId: team_members.teamId,
-    })
-    .from(users)
-    .leftJoin(team_members, eq(users.id, team_members.userId))
-    .where(eq(users.id, user.id))
-    .limit(1);
-
-  return result[0] || null;
-}
-
-// Get team with members and lead
-export async function getTeamWithMembersAndLead(
-  teamId: string
-): Promise<TeamDataWithMembers | null> {
-  const result = await db.query.teams.findFirst({
-    where: eq(teams.id, teamId),
-    with: {
-      teamMembers: {
-        with: {
-          user: {
-            columns: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  return result || null;
-}
-
-// Get organization with teams and leads
-export async function getOrganizationWithTeamsAndLeads(
-  orgId: string
-): Promise<
-  (Organization & { teams: Array<Team & { lead: User | null }> }) | null
-> {
-  const [org] = await db
-    .select()
-    .from(organizations)
-    .where(eq(organizations.id, orgId))
-    .limit(1);
-  if (!org) {
-    return null;
-  }
-
-  const orgTeams = await db
-    .select({
-      team: teams,
-      lead: users,
-    })
-    .from(teams)
-    .leftJoin(users, eq(teams.leadId, users.id))
-    .where(eq(teams.organizationId, orgId));
-
-  return {
-    ...org,
-    teams: orgTeams.map(({ team, lead }) => ({ ...team, lead })),
-  };
 }

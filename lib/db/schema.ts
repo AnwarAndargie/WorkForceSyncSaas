@@ -3,11 +3,8 @@ import {
   text,
   uuid,
   timestamp,
-  primaryKey,
-  foreignKey,
   bigint,
   integer,
-  serial,
   varchar,
   pgEnum,
   boolean,
@@ -32,24 +29,26 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   name: varchar("name", { length: 100 }),
   passwordHash: text("password_hash"),
-  organizationId: uuid("organization_id")
-    .notNull()
-    .references((): any => organizations.id, { onDelete: "cascade" }),
+  organizationId: uuid("organization_id").references(
+    (): any => organizations.id,
+    { onDelete: "cascade" }
+  ), // nullable OK
   role: userRole("role").notNull().default("member"),
   createdAt: timestamp("created_at").defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
   isActive: boolean("is_active").default(true),
 });
 
-// ---------- ORGANIZATIONS ----------
 export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
   subdomain: text("subdomain").notNull().unique(),
   createdBy: uuid("created_by").references(() => users.id, {
     onDelete: "set null",
-  }),
-  planId: uuid("plan_id").references(() => plans.id, { onDelete: "set null" }),
+  }), // nullable OK
+  planId: uuid("plan_id").references(() => plans.id, {
+    onDelete: "set null",
+  }), // nullable OK
   createdAt: timestamp("created_at").defaultNow(),
   stripeCustomerId: text("stripe_customer_id"),
   stripeProductId: text("stripe_product_id"),
@@ -64,69 +63,32 @@ export const organizations = pgTable("organizations", {
   ),
 });
 
-// ---------- PLANS ----------
 export const plans = pgTable("plans", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull().unique(),
-  price: integer("price").notNull(),
+  price: integer("price").notNull().default(10),
   currency: text("currency").default("usd"),
-  stripePriceId: text("stripe_price_id").notNull().unique(),
+  stripePriceId: text("stripe_price_id").unique(),
   description: text("description"),
   createdAt: timestamp("created_at").defaultNow(),
+  isActive: boolean("is_active").default(true),
 });
 
-// ---------- TEAMS ----------
-export const teams = pgTable("teams", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name").notNull(),
-  organizationId: uuid("organization_id")
-    .notNull()
-    .references(() => organizations.id, { onDelete: "cascade" }),
-  leadId: uuid("lead_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "restrict" }), // Enforce team lead
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// ---------- TEAM MEMBERS ----------
-export const team_members = pgTable(
-  "team_members",
-  {
-    teamId: uuid("team_id")
-      .notNull()
-      .references(() => teams.id, { onDelete: "cascade" }),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    joinedAt: timestamp("joined_at").defaultNow(),
-  },
-  (t) => ({
-    pk: primaryKey({ columns: [t.teamId, t.userId] }),
-  })
-);
-
-// ---------- ACTIVITY LOGS ----------
 export const activityLogs = pgTable("activity_logs", {
-  id: uuid("id").primaryKey(),
-  teamId: uuid("team_id")
-    .notNull()
-    .references(() => teams.id, { onDelete: "cascade" }),
-  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  id: uuid("id").defaultRandom().primaryKey(), // added defaultRandom()
+  userId: uuid("user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   action: text("action").notNull(),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
   ipAddress: varchar("ip_address", { length: 45 }),
 });
 
-// ---------- INVITATIONS ----------
 export const invitations = pgTable("invitations", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
-  invitedById: uuid("invited_by_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
   invitedUserEmail: text("invited_user_email").notNull(),
   role: userRole("role").notNull(),
   status: invitationStatus("status").default("pending"),
@@ -152,7 +114,6 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     fields: [users.organizationId],
     references: [organizations.id],
   }),
-  teamMembers: many(team_members),
   invitationsSent: many(invitations),
   activityLogs: many(activityLogs),
 }));
@@ -162,7 +123,6 @@ export const organizationsRelations = relations(
   organizations,
   ({ one, many }) => ({
     users: many(users),
-    teams: many(teams),
     plan: one(plans, {
       fields: [organizations.planId],
       references: [plans.id],
@@ -170,39 +130,8 @@ export const organizationsRelations = relations(
   })
 );
 
-// TEAMS RELATIONS
-export const teamsRelations = relations(teams, ({ one, many }) => ({
-  organization: one(organizations, {
-    fields: [teams.organizationId],
-    references: [organizations.id],
-  }),
-  lead: one(users, {
-    fields: [teams.leadId],
-    references: [users.id],
-  }),
-  teamMembers: many(team_members),
-  activityLogs: many(activityLogs),
-  invitations: many(invitations),
-}));
-
-// TEAM MEMBERS RELATIONS
-export const teamMembersRelations = relations(team_members, ({ one }) => ({
-  user: one(users, {
-    fields: [team_members.userId],
-    references: [users.id],
-  }),
-  team: one(teams, {
-    fields: [team_members.teamId],
-    references: [teams.id],
-  }),
-}));
-
 // ACTIVITY LOGS RELATIONS
 export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
-  team: one(teams, {
-    fields: [activityLogs.teamId],
-    references: [teams.id],
-  }),
   user: one(users, {
     fields: [activityLogs.userId],
     references: [users.id],
@@ -211,14 +140,6 @@ export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
 
 // INVITATIONS RELATIONS
 export const invitationsRelations = relations(invitations, ({ one }) => ({
-  team: one(teams, {
-    fields: [invitations.teamId],
-    references: [teams.id],
-  }),
-  invitedBy: one(users, {
-    fields: [invitations.invitedById],
-    references: [users.id],
-  }),
   organization: one(organizations, {
     fields: [invitations.organizationId],
     references: [organizations.id],
@@ -233,10 +154,6 @@ export const plansRelations = relations(plans, ({ many }) => ({
 // TYPE EXPORTS
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
-export type Team = typeof teams.$inferSelect;
-export type NewTeam = typeof teams.$inferInsert;
-export type TeamMember = typeof team_members.$inferSelect;
-export type NewTeamMember = typeof team_members.$inferInsert;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
 export type Invitation = typeof invitations.$inferSelect;
@@ -246,11 +163,6 @@ export type NewOrganization = typeof organizations.$inferInsert;
 export type Plan = typeof plans.$inferSelect;
 export type NewPlan = typeof plans.$inferInsert;
 export type EmailEvent = typeof emailEvents.$inferSelect;
-export type TeamDataWithMembers = Team & {
-  teamMembers: (TeamMember & {
-    user: Pick<User, "id" | "name" | "email">;
-  })[];
-};
 
 export enum ActivityType {
   SIGN_UP = "SIGN_UP",
