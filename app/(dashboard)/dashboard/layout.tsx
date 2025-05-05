@@ -15,6 +15,8 @@ import {
   Home,
   BookOpen,
   Container,
+  UsersRound,
+  Users2,
 } from "lucide-react";
 import useSWR from "swr";
 import { User } from "@/lib/db/schema";
@@ -38,6 +40,12 @@ export default function DashboardLayout({
 
   const navItems = [
     { href: "/dashboard", label: "Overview", icon: Home, visible: true },
+    {
+      href: "/dashboard/members",
+      label: "Members",
+      icon: Users2,
+      visible: isOrgAdmin,
+    },
 
     {
       href: "/dashboard/plans",
