@@ -17,6 +17,7 @@ import {
   Container,
   UsersRound,
   Users2,
+  ListCollapse,
 } from "lucide-react";
 import useSWR from "swr";
 import { User } from "@/lib/db/schema";
@@ -40,6 +41,12 @@ export default function DashboardLayout({
 
   const navItems = [
     { href: "/dashboard", label: "Overview", icon: Home, visible: true },
+    {
+      href: "/dashboard/organizations",
+      label: "Organizations",
+      icon: ListCollapse,
+      visible: isSuperAdmin,
+    },
     {
       href: "/dashboard/members",
       label: "Members",
