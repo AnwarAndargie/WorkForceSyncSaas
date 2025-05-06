@@ -10,6 +10,7 @@ import {
   boolean,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { features } from "process";
 
 export const userRole = pgEnum("role", [
   "super_admin",
@@ -71,6 +72,7 @@ export const plans = pgTable("plans", {
   stripePriceId: text("stripe_price_id").unique(),
   description: text("description"),
   createdAt: timestamp("created_at").defaultNow(),
+  features: text("features").array(),
   isActive: boolean("is_active").default(true),
 });
 
