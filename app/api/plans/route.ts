@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as db from "@/lib/db/queries";
+import * as db from "@/lib/db/queries/plans";
 
 // GET all plans
 export async function GET(req: NextRequest) {

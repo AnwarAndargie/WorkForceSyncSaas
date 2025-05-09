@@ -5,11 +5,8 @@ import { setSession } from "@/lib/auth/session"; // Adjust path
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/payments/stripe"; // Adjust path
 import Stripe from "stripe";
-import {
-  getUserById,
-  getTeamForUser,
-  updateOrganizationSubscription,
-} from "@/lib/db/queries"; // Adjust path to queries.ts
+import { updateOrganizationSubscription } from "@/lib/db/queries/organizations"; // Adjust path to queries.ts
+import { getUserById } from "@/lib/db/queries/users";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;

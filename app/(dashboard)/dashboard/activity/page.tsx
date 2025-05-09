@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ActivityType } from "@/lib/db/schema";
-import { getActivityLogsForUser } from "@/lib/db/queries";
+import { getActivityLogsForUser } from "@/lib/db/queries/activity-logs";
 
 const iconMap: Record<ActivityType, LucideIcon> = {
   [ActivityType.SIGN_UP]: UserPlus,

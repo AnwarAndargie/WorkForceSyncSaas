@@ -16,15 +16,14 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { sendWelcomeEmail } from "@/lib/email/email-services";
 import { createCheckoutSession } from "@/lib/payments/stripe";
+import { getUser, createUser, getUserByEmail } from "@/lib/db/queries/users";
 import {
-  getUser,
-  createUser,
   createOrganization,
-  createActivityLog,
-  getUserByEmail,
   getOrganizationById,
-  createInvitation,
-} from "@/lib/db/queries";
+} from "@/lib/db/queries/organizations";
+import { createActivityLog } from "@/lib/db/queries/activity-logs";
+import { createInvitation } from "@/lib/db/queries/invitation";
+
 import {
   validatedAction,
   validatedActionWithUser,

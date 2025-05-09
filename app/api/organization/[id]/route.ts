@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as db from "@/lib/db/queries";
+import * as db from "@/lib/db/queries/organizations";
 
 // GET organization by ID
 export async function GET(
