@@ -80,7 +80,6 @@ export default async function PricingPage() {
     </main>
   );
 }
-
 function PricingCard({
   name,
   price,
@@ -135,3 +134,4 @@ function PricingCard({
     </div>
   );
 }
+
