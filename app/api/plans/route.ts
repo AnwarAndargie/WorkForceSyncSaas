@@ -1,77 +1,77 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db/drizzle";
 import { plans, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getUser } from "@/lib/db/queries/users";
 import { stripe } from "@/lib/stripe";
 
-export async function GET() {
-  const user = await getUser();
+// GET all available plans
+export async function GET(req: NextRequest) {
+  const currentUser = await getUser();
 
-  if (!user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  // Check authentication
+  if (!currentUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // If user is a super admin, return all plans
-  if (user.role === "super_admin") {
+  try {
     const allPlans = await db.query.plans.findMany();
     return NextResponse.json(allPlans);
+  } catch (error) {
+    console.error("Error fetching plans:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch plans" },
+      { status: 500 }
+    );
   }
-
-  // Otherwise, return only active plans
-  const activePlans = await db.query.plans.findMany({
-    where: eq(plans.isActive, true),
-  });
-
-  return NextResponse.json(activePlans);
 }
 
-export async function POST(req: Request) {
-  const user = await getUser();
+// POST to create a new plan (super_admin only)
+export async function POST(req: NextRequest) {
+  const currentUser = await getUser();
 
-  if (!user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  // Check authentication and authorization
+  if (!currentUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (user.role !== "super_admin") {
-    return new NextResponse("Forbidden", { status: 403 });
+  if (currentUser.role !== "super_admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json();
-  const { name, description, price, features } = body;
+  try {
+    const body = await req.json();
+    const { name, price, currency, description, features, stripePriceId } = body;
 
-  if (!name || !price) {
-    return new NextResponse("Missing required fields", { status: 400 });
+    if (!name || price === undefined) {
+      return NextResponse.json(
+        { error: "Name and price are required" },
+        { status: 400 }
+      );
+    }
+
+    // Create the plan
+    const newPlan = await db
+      .insert(plans)
+      .values({
+        name,
+        price,
+        currency: currency || "usd",
+        description,
+        features: features || [],
+        stripePriceId,
+        isActive: true,
+      })
+      .returning();
+
+    return NextResponse.json(newPlan[0]);
+  } catch (error) {
+    console.error("Error creating plan:", error);
+    return NextResponse.json(
+      { error: "Failed to create plan" },
+      { status: 500 }
+    );
   }
-
-  // Create Stripe product and price
-  const product = await stripe.products.create({
-    name,
-    description,
-  });
-
-  const stripePrice = await stripe.prices.create({
-    product: product.id,
-    unit_amount: price,
-    currency: "usd",
-    recurring: {
-      interval: "month",
-    },
-  });
-
-  const plan = await db
-    .insert(plans)
-    .values({
-      name,
-      description,
-      price,
-      features,
-      stripeProductId: product.id,
-      stripePriceId: stripePrice.id,
-    })
-    .returning();
-
-  return NextResponse.json(plan[0]);
 }
 
 export async function PATCH(req: Request) {

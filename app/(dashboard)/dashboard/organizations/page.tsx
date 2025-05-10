@@ -4,6 +4,7 @@ import { columns } from "./columns";
 import { redirect } from "next/navigation";
 import { getAllOrganizations } from "@/lib/db/queries/organizations";
 import { getUser } from "@/lib/db/queries/users";
+import { CreateOrganizationDialog } from "./create-organization-dialog";
 
 export const metadata: Metadata = {
   title: "Organizations",
@@ -23,7 +24,10 @@ export default async function OrganizationsPage() {
 
   return (
     <div className="container mx-auto py-10">
-      <h1 className="text-2xl font-bold mb-8">Organizations</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-2xl font-bold">Organizations</h1>
+        <CreateOrganizationDialog />
+      </div>
       <DataTable columns={columns} data={data} />
     </div>
   );
