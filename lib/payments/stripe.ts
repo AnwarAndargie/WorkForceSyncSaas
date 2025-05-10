@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { redirect } from "next/navigation";
 import { Organization, Team } from "@/lib/db/schema";
-import { getUser } from "@/lib/db/queries";
+import { getUser } from "@/lib/db/queries/users";
 import {
   getOrganizationByStripeCustomerId,
   updateOrganizationSubscription,
