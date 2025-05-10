@@ -1,28 +1,19 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { db } from "@/db";
-import { plans, users } from "@/db/schema";
+import { db } from "@/lib/db/drizzle";
+import { plans, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { authOptions } from "@/lib/auth";
+import { getUser } from "@/lib/db/queries/users";
 import { stripe } from "@/lib/stripe";
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const user = await getUser();
 
-  if (!session?.user) {
+  if (!user) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, session.user.email!),
-  });
-
-  if (!user) {
-    return new NextResponse("User not found", { status: 404 });
-  }
-
   // If user is a super admin, return all plans
-  if (user.role === "SUPER_ADMIN") {
+  if (user.role === "super_admin") {
     const allPlans = await db.query.plans.findMany();
     return NextResponse.json(allPlans);
   }
@@ -36,17 +27,13 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
+  const user = await getUser();
 
-  if (!session?.user) {
+  if (!user) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, session.user.email!),
-  });
-
-  if (!user || user.role !== "SUPER_ADMIN") {
+  if (user.role !== "super_admin") {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
@@ -75,7 +62,6 @@ export async function POST(req: Request) {
   const plan = await db
     .insert(plans)
     .values({
-      id: crypto.randomUUID(),
       name,
       description,
       price,
@@ -89,17 +75,13 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const session = await getServerSession(authOptions);
+  const user = await getUser();
 
-  if (!session?.user) {
+  if (!user) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, session.user.email!),
-  });
-
-  if (!user || user.role !== "SUPER_ADMIN") {
+  if (user.role !== "super_admin") {
     return new NextResponse("Forbidden", { status: 403 });
   }
 

@@ -1,11 +1,9 @@
 import { Metadata } from "next";
-import { db } from "@/lib/db/drizzle";
-import { organizations } from "@/lib/db/schema";
 import { DataTable } from "@/components/ui/data-table";
 import { columns } from "./columns";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
 import { redirect } from "next/navigation";
+import { getAllOrganizations } from "@/lib/db/queries/organizations";
+import { getUser } from "@/lib/db/queries/users";
 
 export const metadata: Metadata = {
   title: "Organizations",
@@ -13,18 +11,15 @@ export const metadata: Metadata = {
 };
 
 export default async function OrganizationsPage() {
-  const session = await getServerSession(authOptions);
+  const user = await getUser();
 
-  if (!session?.user || session.user.role !== "super_admin") {
+  // Check if the user exists and has the super_admin role
+  if (!user || user.role !== "super_admin") {
     redirect("/dashboard");
   }
 
-  const data = await db.query.organizations.findMany({
-    with: {
-      plan: true,
-      users: true,
-    },
-  });
+  // Use the query function to get all organizations
+  const data = await getAllOrganizations();
 
   return (
     <div className="container mx-auto py-10">

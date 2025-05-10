@@ -1,32 +1,27 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { db } from "@/db";
-import { organizations, users } from "@/db/schema";
+import { db } from "@/lib/db/drizzle";
+import { organizations, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { authOptions } from "@/lib/auth";
+import { getUser } from "@/lib/db/queries/users";
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const user = await getUser();
 
-  if (!session?.user) {
+  if (!user) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, session.user.email!),
-  });
-
-  if (!user) {
-    return new NextResponse("User not found", { status: 404 });
-  }
-
   // If user is a super admin, return all organizations
-  if (user.role === "SUPER_ADMIN") {
+  if (user.role === "super_admin") {
     const orgs = await db.query.organizations.findMany();
     return NextResponse.json(orgs);
   }
 
   // Otherwise, return only the user's organization
+  if (!user.organizationId) {
+    return new NextResponse("Organization not found", { status: 404 });
+  }
+
   const org = await db.query.organizations.findFirst({
     where: eq(organizations.id, user.organizationId),
   });
@@ -39,41 +34,37 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
+  const user = await getUser();
 
-  if (!session?.user) {
+  if (!user) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, session.user.email!),
-  });
-
-  if (!user || user.role !== "SUPER_ADMIN") {
+  if (user.role !== "super_admin") {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
   const body = await req.json();
-  const { name, slug } = body;
+  const { name, subdomain } = body;
 
-  if (!name || !slug) {
+  if (!name || !subdomain) {
     return new NextResponse("Missing required fields", { status: 400 });
   }
 
   const existingOrg = await db.query.organizations.findFirst({
-    where: eq(organizations.slug, slug),
+    where: eq(organizations.subdomain, subdomain),
   });
 
   if (existingOrg) {
-    return new NextResponse("Organization slug already exists", { status: 400 });
+    return new NextResponse("Organization subdomain already exists", { status: 400 });
   }
 
   const org = await db
     .insert(organizations)
     .values({
-      id: crypto.randomUUID(),
       name,
-      slug,
+      subdomain,
+      createdBy: user.id
     })
     .returning();
 

@@ -1,26 +1,17 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { getServerSession } from "next-auth";
-import { db } from "@/db";
-import { organizations, users } from "@/db/schema";
+import { db } from "@/lib/db/drizzle";
+import { organizations, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { authOptions } from "@/lib/auth";
+import { getUser } from "@/lib/db/queries/users";
 import { stripe } from "@/lib/stripe";
 import { createStripeCheckoutSession } from "@/lib/stripe";
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-
-  if (!session?.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
-  }
-
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, session.user.email!),
-  });
+  const user = await getUser();
 
   if (!user) {
-    return new NextResponse("User not found", { status: 404 });
+    return new NextResponse("Unauthorized", { status: 401 });
   }
 
   const body = await req.json();
@@ -41,18 +32,14 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
+  const user = await getUser();
 
-  if (!session?.user) {
+  if (!user) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, session.user.email!),
-  });
-
-  if (!user) {
-    return new NextResponse("User not found", { status: 404 });
+  if (!user.organizationId) {
+    return new NextResponse("Organization not found", { status: 404 });
   }
 
   const org = await db.query.organizations.findFirst({
@@ -75,18 +62,18 @@ export async function GET(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const session = await getServerSession(authOptions);
+  const user = await getUser();
 
-  if (!session?.user) {
+  if (!user) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, session.user.email!),
-  });
-
-  if (!user || user.role !== "ORG_ADMIN") {
+  if (user.role !== "org_admin") {
     return new NextResponse("Forbidden", { status: 403 });
+  }
+
+  if (!user.organizationId) {
+    return new NextResponse("Organization not found", { status: 404 });
   }
 
   const org = await db.query.organizations.findFirst({
