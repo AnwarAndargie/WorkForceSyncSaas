@@ -4,6 +4,7 @@ import { organizations, Organization, NewOrganization } from "./../schema";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth/session";
 import { v4 as uuidv4 } from "uuid";
+import { getPlanById } from "./plans";
 
 export async function createOrganization(
   data: NewOrganization

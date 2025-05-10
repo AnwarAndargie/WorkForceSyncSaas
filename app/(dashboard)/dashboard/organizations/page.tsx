@@ -5,11 +5,16 @@ import { redirect } from "next/navigation";
 import { getAllOrganizations } from "@/lib/db/queries/organizations";
 import { getUser } from "@/lib/db/queries/users";
 import { CreateOrganizationDialog } from "./create-organization-dialog";
+import { Organization } from "@/lib/db/schema";
 
 export const metadata: Metadata = {
   title: "Organizations",
   description: "Manage organizations and their plans",
 };
+
+interface OrganizationWithPlanName extends Organization {
+  planName: string;
+}
 
 export default async function OrganizationsPage() {
   const user = await getUser();
