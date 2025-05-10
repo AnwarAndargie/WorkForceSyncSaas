@@ -1,6 +1,6 @@
 import Stripe from "stripe";
-import { db } from "@/db";
-import { organizations, plans } from "@/db/schema";
+import { db } from "./db/drizzle";
+import { organizations, plans } from "./db/schema";
 import { eq } from "drizzle-orm";
 
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -40,10 +40,7 @@ export async function createStripeCustomer(orgId: string) {
   return customer.id;
 }
 
-export async function createStripeSubscription(
-  orgId: string,
-  planId: string
-) {
+export async function createStripeSubscription(orgId: string, planId: string) {
   const [org, plan] = await Promise.all([
     db.query.organizations.findFirst({
       where: eq(organizations.id, orgId),
@@ -146,4 +143,4 @@ export async function createStripeCheckoutSession(
   });
 
   return session;
-} 
+}
