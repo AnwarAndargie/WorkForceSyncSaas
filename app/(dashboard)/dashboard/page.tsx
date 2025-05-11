@@ -18,6 +18,7 @@ import {
   Loader2,
   ChevronRight,
   Home,
+  UserPlus,
 } from "lucide-react";
 import {
   BarChart,
@@ -237,8 +238,8 @@ export default function DashboardPage() {
   // Org admin quick actions
   const quickActions = [
     { icon: Upload, label: "Import Members", href: "/dashboard/members/import" },
-    { icon: Download, label: "Export Members", href: "/dashboard/members/export" },
-    { icon: FileText, label: "Generate Reports", href: "/dashboard/reports" },
+    { icon: Download, label: "Export Members", href: "/dashboard/members" },
+    { icon: UserPlus, label: "Invite Member", href: "/dashboard/members/invite" },
     { icon: Settings, label: "Settings", href: "/dashboard/settings" },
   ];
 

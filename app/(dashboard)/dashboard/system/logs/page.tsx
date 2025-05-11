@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
-import { getUser } from "@/lib/auth/utils";
+import { getUser } from "@/lib/db/queries/users";
 
 // Type for system log
 interface SystemLog {
