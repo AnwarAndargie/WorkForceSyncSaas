@@ -31,6 +31,10 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { data: user } = useSWR<User>("/api/user", fetcher);
+  const { data: organization } = useSWR(
+    `/api/organization/${user?.organizationId}`,
+    fetcher
+  );
 
   if (!user) {
     return <div>Loading...</div>;
@@ -94,7 +98,7 @@ export default function DashboardLayout({
         } md:translate-x-0 transition-transform duration-300 ease-in-out md:static md:flex md:flex-col`}
       >
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold">Dashboard</h2>
+          <h2 className="text-lg font-semibold">{organization?.name}</h2>
           <Button
             size="icon"
             className="bg-orange-400 hover:bg-orange-300 md:hidden"

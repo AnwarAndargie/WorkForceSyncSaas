@@ -4,37 +4,38 @@ import { users, invitations } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getUser } from "@/lib/db/queries/users";
 import { v4 as uuidv4 } from "uuid";
+import { hash } from "bcrypt";
 
 // GET users for an organization
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const currentUser = await getUser();
-
-  // Check authorization
-  if (!currentUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Only super_admin or users in the organization can see users
-  const isSuperAdmin = currentUser.role === "super_admin";
-  const isOrgMember = currentUser.organizationId === params.id;
-  const isOrgAdmin = isOrgMember && currentUser.role === "org_admin";
-
-  if (!isSuperAdmin && !isOrgMember) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   try {
-    const orgUsers = await db.select().from(users).where(eq(users.organizationId, params.id));
-    return NextResponse.json(orgUsers);
+    const currentUser = await getUser();
+    
+    if (!currentUser) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+    
+    // Check if user is super_admin or an org_admin of the requested organization
+    const hasPermission = 
+      currentUser.role === "super_admin" || 
+      (currentUser.role === "org_admin" && currentUser.organizationId === params.id);
+    
+    if (!hasPermission) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+    
+    // Get all users from the organization
+    const organizationUsers = await db.query.users.findMany({
+      where: eq(users.organizationId, params.id),
+    });
+    
+    return NextResponse.json(organizationUsers);
   } catch (error) {
-    console.error("Error fetching users:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch users" },
-      { status: 500 }
-    );
+    console.error("[ORGANIZATION_USERS_GET]", error);
+    return new NextResponse("Internal Error", { status: 500 });
   }
 }
 
@@ -43,80 +44,48 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const currentUser = await getUser();
-
-  // Check authorization
-  if (!currentUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Only super_admin or org_admin can add users
-  const isSuperAdmin = currentUser.role === "super_admin";
-  const isOrgAdmin = currentUser.organizationId === params.id && currentUser.role === "org_admin";
-
-  if (!isSuperAdmin && !isOrgAdmin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   try {
+    const currentUser = await getUser();
+    
+    if (!currentUser) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+    
+    // Check if user is super_admin or an org_admin of the requested organization
+    const hasPermission = 
+      currentUser.role === "super_admin" || 
+      (currentUser.role === "org_admin" && currentUser.organizationId === params.id);
+    
+    if (!hasPermission) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+    
     const body = await req.json();
-    const { email, name, role } = body;
-
+    const { email, name, role = "member", password } = body;
+    
     if (!email) {
-      return NextResponse.json(
-        { error: "Email is required" },
-        { status: 400 }
-      );
+      return new NextResponse("Email is required", { status: 400 });
     }
-
-    // Check if user already exists
-    const existingUser = await db.query.users.findFirst({
-      where: eq(users.email, email),
-    });
-
-    if (existingUser) {
-      // If user exists but is not in this organization, update them
-      if (existingUser.organizationId !== params.id) {
-        const [updatedUser] = await db
-          .update(users)
-          .set({ organizationId: params.id, role: role || "member" })
-          .where(eq(users.id, existingUser.id))
-          .returning();
-        
-        return NextResponse.json(updatedUser);
-      } else {
-        return NextResponse.json(
-          { error: "User already belongs to this organization" },
-          { status: 400 }
-        );
-      }
-    }
-
-    // User doesn't exist, create an invitation
-    const invitation = await db
-      .insert(invitations)
-      .values({
-        id: uuidv4(),
-        organizationId: params.id,
-        invitedUserEmail: email,
-        role: role || "member",
-        status: "pending",
-      })
-      .returning();
-
-    // Return a user-like object for the frontend
-    return NextResponse.json({
-      id: invitation[0].id,
+    
+    // Create a new user in the organization
+    const newUser = await db.insert(users).values({
       email,
-      name: name || email.split("@")[0],
-      role: role || "member",
-      pending: true
-    });
+      name,
+      role,
+      organizationId: params.id,
+      passwordHash: password ? await hash(password, 10) : undefined,
+      isActive: true,
+    }).returning();
+    
+    return NextResponse.json(newUser[0]);
   } catch (error) {
-    console.error("Error adding user:", error);
-    return NextResponse.json(
-      { error: "Failed to add user" },
-      { status: 500 }
-    );
+    console.error("[ORGANIZATION_USERS_POST]", error);
+    return new NextResponse("Internal Error", { status: 500 });
   }
+}
+
+// Mock function for hashing passwords
+async function hashPassword(password: string): Promise<string> {
+  // In a real app, use bcrypt or similar
+  return `hashed_${password}`;
 } 

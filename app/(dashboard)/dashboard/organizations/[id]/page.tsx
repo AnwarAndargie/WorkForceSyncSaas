@@ -5,7 +5,8 @@ import { useRouter, useParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, Building } from "lucide-react";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 
 export default function EditOrganizationPage() {
   const { id } = useParams();
@@ -64,6 +65,14 @@ export default function EditOrganizationPage() {
 
   return (
     <div className=" mx-auto p-6">
+      <Breadcrumb 
+        items={[
+          { label: "Dashboard", href: "/dashboard", icon: <Building className="h-4 w-4" /> },
+          { label: "Organizations", href: "/dashboard/organizations", icon: <Building className="h-4 w-4" /> },
+          { label: name || "Organization Details" }
+        ]} 
+      />
+      
       <h1 className="text-2xl font-bold mb-6">Edit Organization Data</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>

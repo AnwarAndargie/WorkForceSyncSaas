@@ -48,7 +48,7 @@ export async function createCheckoutSession({
 
 export async function createCustomerPortalSession(org: Organization) {
   if (!org?.stripeCustomerId || !org.stripeSubscriptionId) {
-    redirect("/pricing");
+    redirect(`/dashboard/organizations/${org.id}/plan`);
   }
 
   let configuration: Stripe.BillingPortal.Configuration;

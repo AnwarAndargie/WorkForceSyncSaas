@@ -21,6 +21,11 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 function UserMenu() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { data: user } = useSWR<User>("/api/user", fetcher);
+  const { data: organization } = useSWR(
+    `/api/organization/${user?.organizationId}`,
+    fetcher
+  );
+
   const router = useRouter();
 
   async function handleSignOut() {
@@ -42,7 +47,7 @@ function UserMenu() {
           size="lg"
           className="text-lg w-36 rounded-full bg-orange-600 text-white hover:bg-orange-500 cursor-pointer"
         >
-          <Link href="/sign-up">Sign Up</Link>
+          <Link href="/sign-up">Sign Up </Link>
         </Button>
       </>
     );
