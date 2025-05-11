@@ -64,7 +64,6 @@ export default function DashboardLayout({
       icon: Users2,
       visible: isOrgAdmin,
     },
-
     {
       href: "/dashboard/plans",
       label: "Plans",
