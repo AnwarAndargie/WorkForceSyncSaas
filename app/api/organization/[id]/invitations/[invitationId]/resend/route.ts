@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { invitations } from "@/lib/db/schema";
+import { invitations, organizations } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getUser } from "@/lib/db/queries/users";
+import { sendInvitationEmail } from "@/lib/email/email-services";
 
 // POST to resend invitation
 export async function POST(
@@ -39,6 +40,15 @@ export async function POST(
       return new NextResponse("Invitation not found", { status: 404 });
     }
     
+    // Get organization data
+    const organization = await db.query.organizations.findFirst({
+      where: (organizations, { eq }) => eq(organizations.id, params.id)
+    });
+
+    if (!organization) {
+      return new NextResponse("Organization not found", { status: 404 });
+    }
+    
     // Update the invitation's sent timestamp
     const updatedInvitation = await db
       .update(invitations)
@@ -57,7 +67,17 @@ export async function POST(
       return new NextResponse("Failed to update invitation", { status: 500 });
     }
     
-    // TODO: Send invitation email with the invitation link
+    // Send the invitation email
+    await sendInvitationEmail(
+      updatedInvitation[0],
+      {
+        id: currentUser.id,
+        name: currentUser.name || currentUser.email.split('@')[0]
+      },
+      {
+        name: organization.name
+      }
+    );
     
     return NextResponse.json({
       message: "Invitation resent successfully",

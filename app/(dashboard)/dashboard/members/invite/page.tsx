@@ -13,10 +13,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Loader2, Mail, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import { getUser } from "@/lib/db/queries/users";
+import useSwr from "swr";
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function InviteMemberPage() {
   const router = useRouter();
@@ -33,7 +41,9 @@ export default function InviteMemberPage() {
   useEffect(() => {
     const checkUser = async () => {
       try {
-        const user = await getUser();
+        const userRes = await fetch("/api/user");
+        const user = await userRes.json();
+
         setCurrentUser(user);
 
         if (!user || user.role !== "org_admin") {
@@ -54,49 +64,56 @@ export default function InviteMemberPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleRoleChange = (value: string) => {
-    setFormData(prev => ({ ...prev, role: value }));
+    setFormData((prev) => ({ ...prev, role: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.email.trim()) {
       toast.error("Email is required");
       return;
     }
-    
+
     if (!currentUser?.organizationId) {
       toast.error("Organization ID is missing");
       return;
     }
 
     setSubmitting(true);
-    
+
     try {
-      const res = await fetch(`/api/organization/${currentUser.organizationId}/users/invite`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-      
+      const res = await fetch(
+        `/api/organization/${currentUser.organizationId}/users/invite`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData),
+        }
+      );
+
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.error || error.message || "Failed to invite user");
+        throw new Error(
+          error.error || error.message || "Failed to invite user"
+        );
       }
-      
+
       const result = await res.json();
       toast.success(result.message || "User invitation sent successfully");
-      
+
       // Clear form or redirect
-      if (e.nativeEvent instanceof SubmitEvent && 
-          e.nativeEvent.submitter instanceof HTMLButtonElement && 
-          e.nativeEvent.submitter.name === "inviteAnother") {
+      if (
+        e.nativeEvent instanceof SubmitEvent &&
+        e.nativeEvent.submitter instanceof HTMLButtonElement &&
+        e.nativeEvent.submitter.name === "inviteAnother"
+      ) {
         // Clear form for another invitation
         setFormData({
           email: "",
@@ -128,13 +145,13 @@ export default function InviteMemberPage() {
         items={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Members", href: "/dashboard/members" },
-          { label: "Invite" }
+          { label: "Invite" },
         ]}
       />
 
       <div className="mb-6">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           onClick={() => router.push("/dashboard/members")}
           className="gap-2 text-muted-foreground"
         >
@@ -152,7 +169,9 @@ export default function InviteMemberPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email">Email Address <span className="text-red-500">*</span></Label>
+              <Label htmlFor="email">
+                Email Address <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="email"
                 name="email"
@@ -163,7 +182,7 @@ export default function InviteMemberPage() {
                 required
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="name">Name (Optional)</Label>
               <Input
@@ -177,10 +196,14 @@ export default function InviteMemberPage() {
                 This will be filled by the user if left blank.
               </p>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
-              <Select name="role" value={formData.role} onValueChange={handleRoleChange}>
+              <Select
+                name="role"
+                value={formData.role}
+                onValueChange={handleRoleChange}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
@@ -195,7 +218,8 @@ export default function InviteMemberPage() {
             <div className="bg-muted/50 p-4 rounded-md flex items-center gap-3">
               <Mail className="h-5 w-5 text-orange-500 flex-shrink-0" />
               <p className="text-sm text-muted-foreground">
-                An email invitation will be sent to this address with instructions to join your organization.
+                An email invitation will be sent to this address with
+                instructions to join your organization.
               </p>
             </div>
 
@@ -210,7 +234,7 @@ export default function InviteMemberPage() {
               </Button>
               <Button
                 type="submit"
-                name="inviteAnother" 
+                name="inviteAnother"
                 variant="outline"
                 disabled={submitting}
               >
@@ -235,4 +259,4 @@ export default function InviteMemberPage() {
       </Card>
     </div>
   );
-} 
+}

@@ -4,19 +4,27 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Download, Loader2, MailOpen, RefreshCw, Search, Trash, Upload, UserPlus } from "lucide-react";
+import {
+  Download,
+  Loader2,
+  MailOpen,
+  RefreshCw,
+  Search,
+  Trash,
+  Upload,
+  UserPlus,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
-import { getUser } from "@/lib/db/queries/users";
 import { User } from "@/lib/db/schema";
 import useSWR from "swr";
 
@@ -42,13 +50,17 @@ export default function MembersPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
-  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(
+    null
+  );
 
   // Fetch current user and check if they are org_admin
   useEffect(() => {
     const checkUser = async () => {
       try {
-        const user = await getUser();
+        const userRes = await fetch("/api/user");
+        const user = await userRes.json();
+
         setCurrentUser(user);
 
         if (!user || user.role !== "org_admin") {
@@ -68,56 +80,72 @@ export default function MembersPage() {
   }, [router]);
 
   // Fetch organization users
-  const { data: users, error: usersError, isLoading: usersLoading, mutate: refreshUsers } = 
-    useSWR<UserWithStatus[]>(
-      currentUser?.organizationId ? `/api/organization/${currentUser.organizationId}/users` : null, 
-      fetcher
-    );
+  const {
+    data: users,
+    error: usersError,
+    isLoading: usersLoading,
+    mutate: refreshUsers,
+  } = useSWR<UserWithStatus[]>(
+    currentUser?.organizationId
+      ? `/api/organization/${currentUser.organizationId}/users`
+      : null,
+    fetcher
+  );
 
   // Fetch invitations
-  const { data: invitations, error: invitationsError, isLoading: invitationsLoading, mutate: refreshInvitations } = 
-    useSWR<any[]>(
-      currentUser?.organizationId ? `/api/organization/${currentUser.organizationId}/invitations` : null, 
-      fetcher
-    );
+  const {
+    data: invitations,
+    error: invitationsError,
+    isLoading: invitationsLoading,
+    mutate: refreshInvitations,
+  } = useSWR<any[]>(
+    currentUser?.organizationId
+      ? `/api/organization/${currentUser.organizationId}/invitations`
+      : null,
+    fetcher
+  );
 
   // Combine users and invitations
   const allMembers: UserWithStatus[] = [...(users || [])];
-  
+
   if (invitations) {
     const pendingInvitations = invitations
-      .filter(inv => inv.status === 'pending')
-      .map(inv => ({
+      .filter((inv) => inv.status === "pending")
+      .map((inv) => ({
         id: inv.id,
         email: inv.invitedUserEmail,
         name: "Invited User",
         role: inv.role,
-        status: 'pending'
+        status: "pending",
       }));
-    
+
     allMembers.push(...pendingInvitations);
   }
 
   // Filter members based on search term
-  const filteredMembers = searchTerm 
-    ? allMembers.filter(member => 
-        member.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.role.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredMembers = searchTerm
+    ? allMembers.filter(
+        (member) =>
+          member.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          member.role.toLowerCase().includes(searchTerm.toLowerCase())
       )
     : allMembers;
 
   const handleRemoveUser = async (userId: string) => {
     if (!currentUser?.organizationId) return;
-    
+
     setDeletingUserId(userId);
     try {
-      const res = await fetch(`/api/organization/${currentUser.organizationId}/users/${userId}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `/api/organization/${currentUser.organizationId}/users/${userId}`,
+        {
+          method: "DELETE",
+        }
+      );
 
       if (!res.ok) throw new Error("Failed to remove user");
-      
+
       toast.success("User removed successfully");
       refreshUsers();
       refreshInvitations();
@@ -131,25 +159,28 @@ export default function MembersPage() {
 
   const handleExportUsers = async () => {
     if (!currentUser?.organizationId) return;
-    
+
     setExporting(true);
     try {
-      const res = await fetch(`/api/organization/${currentUser.organizationId}/users/export`, {
-        method: "GET",
-      });
+      const res = await fetch(
+        `/api/organization/${currentUser.organizationId}/users/export`,
+        {
+          method: "GET",
+        }
+      );
 
       if (!res.ok) throw new Error("Failed to export users");
-      
+
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = "organization-members.csv";
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
       toast.success("Members exported successfully");
     } catch (error) {
       console.error(error);
@@ -161,16 +192,19 @@ export default function MembersPage() {
 
   const handleResendInvitation = async (invitationId: string) => {
     if (!currentUser?.organizationId) return;
-    
+
     setResendingInviteId(invitationId);
-    
+
     try {
-      const res = await fetch(`/api/organization/${currentUser.organizationId}/invitations/${invitationId}/resend`, {
-        method: "POST",
-      });
-      
+      const res = await fetch(
+        `/api/organization/${currentUser.organizationId}/invitations/${invitationId}/resend`,
+        {
+          method: "POST",
+        }
+      );
+
       if (!res.ok) throw new Error("Failed to resend invitation");
-      
+
       toast.success("Invitation resent successfully");
     } catch (error) {
       console.error(error);
@@ -193,14 +227,16 @@ export default function MembersPage() {
       <Breadcrumb
         items={[
           { label: "Dashboard", href: "/dashboard" },
-          { label: "Members" }
+          { label: "Members" },
         ]}
       />
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold">Organization Members</h1>
-          <p className="text-muted-foreground">Manage users in your organization</p>
+          <p className="text-muted-foreground">
+            Manage users in your organization
+          </p>
         </div>
         <div className="flex flex-wrap gap-3">
           <div className="relative w-full sm:w-auto">
@@ -263,19 +299,25 @@ export default function MembersPage() {
                   <TableCell>{member.email}</TableCell>
                   <TableCell className="capitalize">{member.role}</TableCell>
                   <TableCell>
-                    {member.status === 'pending' ? (
-                      <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                    {member.status === "pending" ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-yellow-50 text-yellow-700 border-yellow-200"
+                      >
                         <MailOpen className="mr-1 h-3 w-3" /> Invited
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      <Badge
+                        variant="outline"
+                        className="bg-green-50 text-green-700 border-green-200"
+                      >
                         Active
                       </Badge>
                     )}
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-1">
-                      {member.status === 'pending' ? (
+                      {member.status === "pending" ? (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -299,7 +341,11 @@ export default function MembersPage() {
                           onClick={() => handleRemoveUser(member.id)}
                           disabled={deletingUserId === member.id}
                           className="text-red-600 hover:text-red-800 hover:bg-red-50"
-                          title={member.status === 'pending' ? "Cancel invitation" : "Remove user"}
+                          title={
+                            member.status === "pending"
+                              ? "Cancel invitation"
+                              : "Remove user"
+                          }
                         >
                           {deletingUserId === member.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />

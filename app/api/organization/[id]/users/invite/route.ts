@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { users, invitations } from "@/lib/db/schema";
+import { invitations, organizations, users } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 import { getUser } from "@/lib/db/queries/users";
-import { v4 as uuidv4 } from "uuid";
-import { and, eq } from "drizzle-orm";
+import { z } from "zod";
+import { sendInvitationEmail } from "@/lib/email/email-services";
 
 export async function POST(
   req: NextRequest,
@@ -26,29 +27,42 @@ export async function POST(
     }
     
     const body = await req.json();
-    const { email, name, role = "member" } = body;
     
-    if (!email) {
-      return new NextResponse("Email is required", { status: 400 });
-    }
+    // Validate input
+    const inviteSchema = z.object({
+      email: z.string().email(),
+      role: z.enum(["org_admin", "member"]),
+    });
     
-    // Check if the user already exists in the organization
+    const { email, role } = inviteSchema.parse(body);
+    
+    // Check if user already exists in this organization
     const existingUser = await db.query.users.findFirst({
       where: (users, { and, eq }) => 
-        and(eq(users.email, email), eq(users.organizationId, params.id))
+        and(
+          eq(users.email, email),
+          eq(users.organizationId, params.id)
+        )
     });
     
     if (existingUser) {
-      return NextResponse.json({
-        error: "User with this email already exists in the organization"
-      }, { status: 400 });
+      return new NextResponse("User already exists in this organization", { status: 400 });
+    }
+
+    // Get organization data
+    const organization = await db.query.organizations.findFirst({
+      where: (organizations, { eq }) => eq(organizations.id, params.id)
+    });
+
+    if (!organization) {
+      return new NextResponse("Organization not found", { status: 404 });
     }
     
-    // Check if there's a pending invitation
+    // Check if there's an existing pending invitation
     const existingInvitation = await db.query.invitations.findFirst({
       where: (invitations, { and, eq }) => 
         and(
-          eq(invitations.invitedUserEmail, email), 
+          eq(invitations.invitedUserEmail, email),
           eq(invitations.organizationId, params.id),
           eq(invitations.status, "pending")
         )
@@ -68,7 +82,17 @@ export async function POST(
         )
         .returning();
       
-      // TODO: Send invitation email with the invitation link
+      // Send invitation email
+      await sendInvitationEmail(
+        updatedInvitation[0],
+        {
+          id: currentUser.id,
+          name: currentUser.name || currentUser.email.split('@')[0]
+        },
+        {
+          name: organization.name
+        }
+      );
       
       return NextResponse.json({
         message: "Invitation resent successfully",
@@ -87,7 +111,17 @@ export async function POST(
       })
       .returning();
     
-    // TODO: Send invitation email with the invitation link
+    // Send invitation email
+    await sendInvitationEmail(
+      newInvitation[0],
+      {
+        id: currentUser.id,
+        name: currentUser.name || currentUser.email.split('@')[0]
+      },
+      {
+        name: organization.name
+      }
+    );
     
     return NextResponse.json({
       message: "Invitation sent successfully",

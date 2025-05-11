@@ -4,11 +4,25 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, ArrowLeft, Download, Loader2, Upload } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Download,
+  Loader2,
+  Upload,
+} from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { getUser } from "@/lib/db/queries/users";
+import useSwr from "swr";
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function ImportMembersPage() {
   const router = useRouter();
@@ -24,7 +38,9 @@ export default function ImportMembersPage() {
   useEffect(() => {
     const checkUser = async () => {
       try {
-        const user = await getUser();
+        const userRes = await fetch("/api/user");
+        const user = await userRes.json();
+
         setCurrentUser(user);
 
         if (!user || user.role !== "org_admin") {
@@ -47,16 +63,19 @@ export default function ImportMembersPage() {
     setError(null);
     setImportResult(null);
     const selectedFile = e.target.files?.[0];
-    
+
     if (!selectedFile) {
       return;
     }
-    
-    if (selectedFile.type !== 'text/csv' && !selectedFile.name.endsWith('.csv')) {
-      setError('Please upload a CSV file');
+
+    if (
+      selectedFile.type !== "text/csv" &&
+      !selectedFile.name.endsWith(".csv")
+    ) {
+      setError("Please upload a CSV file");
       return;
     }
-    
+
     setFile(selectedFile);
   };
 
@@ -70,68 +89,72 @@ export default function ImportMembersPage() {
     e.stopPropagation();
     setError(null);
     setImportResult(null);
-    
+
     const droppedFile = e.dataTransfer.files?.[0];
-    
+
     if (!droppedFile) {
       return;
     }
-    
-    if (droppedFile.type !== 'text/csv' && !droppedFile.name.endsWith('.csv')) {
-      setError('Please upload a CSV file');
+
+    if (droppedFile.type !== "text/csv" && !droppedFile.name.endsWith(".csv")) {
+      setError("Please upload a CSV file");
       return;
     }
-    
+
     setFile(droppedFile);
   };
 
   const handleImport = async () => {
     if (!file) {
-      setError('Please select a file to upload');
+      setError("Please select a file to upload");
       return;
     }
-    
+
     if (!currentUser?.organizationId) {
       toast.error("Organization ID is missing");
       return;
     }
-    
+
     setImporting(true);
     setError(null);
     setImportResult(null);
-    
+
     const formData = new FormData();
-    formData.append('file', file);
-    
+    formData.append("file", file);
+
     try {
-      const res = await fetch(`/api/organization/${currentUser.organizationId}/users/import`, {
-        method: 'POST',
-        body: formData,
-      });
-      
+      const res = await fetch(
+        `/api/organization/${currentUser.organizationId}/users/import`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to import users');
+        throw new Error(errorData.message || "Failed to import users");
       }
-      
+
       const data = await res.json();
       setImportResult(data);
       toast.success(`Successfully imported ${data.totalImported} members`);
     } catch (error: any) {
-      setError(error.message || 'Failed to import users');
-      toast.error(error.message || 'Failed to import users');
+      setError(error.message || "Failed to import users");
+      toast.error(error.message || "Failed to import users");
     } finally {
       setImporting(false);
     }
   };
 
   const downloadTemplate = () => {
-    const template = "email,name,role\nuser1@example.com,User One,member\nuser2@example.com,User Two,team_lead\n";
-    const blob = new Blob([template], { type: 'text/csv' });
+    const template =
+      "email,name,role\nuser1@example.com,User One,member\nuser2@example.com,User Two,team_lead\n";
+    const blob = new Blob([template], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = 'members-import-template.csv';
+    a.download = "members-import-template.csv";
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
@@ -143,7 +166,7 @@ export default function ImportMembersPage() {
     setError(null);
     setImportResult(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = "";
     }
   };
 
@@ -161,13 +184,13 @@ export default function ImportMembersPage() {
         items={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Members", href: "/dashboard/members" },
-          { label: "Import" }
+          { label: "Import" },
         ]}
       />
 
       <div className="mb-6">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           onClick={() => router.push("/dashboard/members")}
           className="gap-2 text-muted-foreground"
         >
@@ -196,7 +219,7 @@ export default function ImportMembersPage() {
 
           <div
             className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors ${
-              error ? 'border-red-500' : 'border-muted'
+              error ? "border-red-500" : "border-muted"
             }`}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
@@ -211,7 +234,7 @@ export default function ImportMembersPage() {
             />
             <Upload className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
             <p className="text-lg font-medium mb-1">
-              {file ? file.name : 'Drag & drop or click to upload a CSV file'}
+              {file ? file.name : "Drag & drop or click to upload a CSV file"}
             </p>
             <p className="text-sm text-muted-foreground mb-2">
               CSV file should have email, name (optional), and role columns
@@ -220,24 +243,28 @@ export default function ImportMembersPage() {
               Supported roles: member, team_lead, org_admin
             </p>
           </div>
-          
+
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          
+
           {file && !error && (
             <div className="bg-muted/50 p-4 rounded-md">
               <p className="font-semibold mb-1">Selected file:</p>
-              <p className="text-sm">{file.name} ({(file.size / 1024).toFixed(2)} KB)</p>
+              <p className="text-sm">
+                {file.name} ({(file.size / 1024).toFixed(2)} KB)
+              </p>
             </div>
           )}
 
           {importResult && (
             <div className="bg-green-50 border border-green-200 p-4 rounded-md">
-              <p className="font-semibold text-green-800 mb-2">Import Summary:</p>
+              <p className="font-semibold text-green-800 mb-2">
+                Import Summary:
+              </p>
               <ul className="text-sm space-y-1 text-green-700">
                 <li>Total imported: {importResult.totalImported} members</li>
                 {importResult.totalErrors > 0 && (
@@ -257,7 +284,7 @@ export default function ImportMembersPage() {
               )}
             </div>
           )}
-          
+
           <div className="flex gap-3 justify-end pt-4">
             <Button
               type="button"
@@ -281,7 +308,7 @@ export default function ImportMembersPage() {
             >
               {importing ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Importing...
                 </>
               ) : (
@@ -293,4 +320,4 @@ export default function ImportMembersPage() {
       </Card>
     </div>
   );
-} 
+}

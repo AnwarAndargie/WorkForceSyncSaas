@@ -44,24 +44,13 @@ export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
   subdomain: text("subdomain").notNull().unique(),
-  createdBy: uuid("created_by").references(() => users.id, {
-    onDelete: "set null",
-  }), // nullable OK
-  planId: uuid("plan_id").references(() => plans.id, {
-    onDelete: "set null",
-  }), // nullable OK
-  createdAt: timestamp("created_at").defaultNow(),
+  planId: uuid("plan_id").references(() => plans.id),
+  previousPlanId: uuid("previous_plan_id").references(() => plans.id),
   stripeCustomerId: text("stripe_customer_id"),
-  stripeProductId: text("stripe_product_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
-  stripeSubscriptionPriceId: text("stripe_subscription_price_id"),
-  stripeSubscriptionStatus: text("stripe_subscription_status"),
-  stripeSubscriptionCurrentPeriodEnd: bigint(
-    "stripe_subscription_current_period_end",
-    {
-      mode: "number",
-    }
-  ),
+  subscriptionStatus: text("subscription_status"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const plans = pgTable("plans", {

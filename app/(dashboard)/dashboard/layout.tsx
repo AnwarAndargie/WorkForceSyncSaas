@@ -15,7 +15,7 @@ import {
   Home,
   BookOpen,
   Container,
-  UsersRound,
+  UserRound,
   Users2,
   ListCollapse,
 } from "lucide-react";
@@ -42,14 +42,21 @@ export default function DashboardLayout({
 
   const isSuperAdmin = user.role === "super_admin";
   const isOrgAdmin = user.role === "org_admin";
+  const isMember = user.role === "member";
 
   const navItems = [
-    { href: "/dashboard", label: "Overview", icon: Home, visible: true },
+    { href: "/dashboard", label: "Overview", icon: Home, visible: !isMember },
     {
       href: "/dashboard/organizations",
       label: "Organizations",
       icon: ListCollapse,
       visible: isSuperAdmin,
+    },
+    {
+      href: "/dashboard/user-profile",
+      label: "User Profile",
+      icon: UserRound,
+      visible: isMember,
     },
     {
       href: "/dashboard/members",
