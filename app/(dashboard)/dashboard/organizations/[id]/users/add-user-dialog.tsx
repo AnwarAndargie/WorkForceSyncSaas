@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 interface User {
@@ -47,7 +47,7 @@ export function AddUserDialog({ organizationId, onUserAdded }: AddUserDialogProp
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/organization/${organizationId}/users`, {
+      const res = await fetch(`/api/organization/${organizationId}/users/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, name, role }),
@@ -55,16 +55,25 @@ export function AddUserDialog({ organizationId, onUserAdded }: AddUserDialogProp
 
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || "Failed to add user");
+        throw new Error(error.error || error.message || "Failed to invite user");
       }
 
-      const newUser = await res.json();
-      toast.success("User invitation sent successfully");
-      onUserAdded(newUser);
+      const result = await res.json();
+      
+      const invitedUser = {
+        id: result.invitation.id,
+        email: result.invitation.invitedUserEmail,
+        name: name || "Invited User",
+        role: result.invitation.role,
+        status: "pending"
+      };
+      
+      toast.success(result.message || "User invitation sent successfully");
+      onUserAdded(invitedUser as User);
       setOpen(false);
       resetForm();
     } catch (error: any) {
-      toast.error(error.message || "Failed to add user");
+      toast.error(error.message || "Failed to invite user");
     } finally {
       setLoading(false);
     }
@@ -83,12 +92,12 @@ export function AddUserDialog({ organizationId, onUserAdded }: AddUserDialogProp
     }}>
       <DialogTrigger asChild>
         <Button className="bg-orange-400 text-white hover:bg-orange-300">
-          <Plus className="mr-2 h-4 w-4" /> Add User
+          <UserPlus className="mr-2 h-4 w-4" /> Invite User
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New User</DialogTitle>
+          <DialogTitle>Invite New User</DialogTitle>
           <DialogDescription>
             Invite a user to join this organization.
           </DialogDescription>

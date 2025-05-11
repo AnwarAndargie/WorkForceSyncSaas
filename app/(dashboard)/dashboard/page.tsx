@@ -328,7 +328,187 @@ export default function DashboardPage() {
           </div>
           
           {/* Rest of super admin dashboard */}
-          {/* ... */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle>Subscription Distribution</CardTitle>
+              </CardHeader>
+              <CardContent className="h-72 flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={subscriptionData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {subscriptionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => [`${value} organizations`, 'Count']} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>Recent Signups</CardTitle>
+                <p className="text-sm text-gray-500">
+                  New organizations in the last 7 days
+                </p>
+              </CardHeader>
+              <CardContent className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={getRecentSignups()}>
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="count" stroke="#8884d8" activeDot={{ r: 8 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Organizations</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-3 px-4 font-medium">Name</th>
+                        <th className="text-left py-3 px-4 font-medium">Subdomain</th>
+                        <th className="text-left py-3 px-4 font-medium">Plan</th>
+                        <th className="text-left py-3 px-4 font-medium">Status</th>
+                        <th className="text-left py-3 px-4 font-medium">Created</th>
+                        <th className="text-left py-3 px-4 font-medium">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentOrganizations?.map((org) => (
+                        <tr key={org.id} className="border-b hover:bg-gray-50">
+                          <td className="py-3 px-4">{org.name}</td>
+                          <td className="py-3 px-4">{org.subdomain}</td>
+                          <td className="py-3 px-4">
+                            <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                              {org.plan}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={`inline-block px-2 py-1 rounded-full text-xs ${
+                              org.status === 'active' ? 'bg-green-100 text-green-800' : 
+                              org.status === 'trialing' ? 'bg-yellow-100 text-yellow-800' : 
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {org.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">{org.created}</td>
+                          <td className="py-3 px-4">
+                            <Link href={`/dashboard/organizations/${org.id}`}>
+                              <Button variant="outline" size="sm" className="flex items-center gap-1">
+                                View <ChevronRight className="h-4 w-4" />
+                              </Button>
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-4">
+                  <Link href="/dashboard/organizations">
+                    <Button className="bg-orange-400 text-white hover:bg-orange-300 w-full">
+                      View All Organizations
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+            <Card className="lg:col-span-2 p-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Link href="/dashboard/organizations/create">
+                  <div className="p-4 border rounded-md hover:shadow-md transition cursor-pointer flex items-center gap-3">
+                    <Building className="h-5 w-5 text-orange-500" />
+                    <div>Create Organization</div>
+                  </div>
+                </Link>
+                <Link href="/dashboard/plans/new">
+                  <div className="p-4 border rounded-md hover:shadow-md transition cursor-pointer flex items-center gap-3">
+                    <CreditCard className="h-5 w-5 text-orange-500" />
+                    <div>Create Plan</div>
+                  </div>
+                </Link>
+                <Link href="/dashboard/users">
+                  <div className="p-4 border rounded-md hover:shadow-md transition cursor-pointer flex items-center gap-3">
+                    <Users className="h-5 w-5 text-orange-500" />
+                    <div>Manage Users</div>
+                  </div>
+                </Link>
+                <Link href="/dashboard/settings">
+                  <div className="p-4 border rounded-md hover:shadow-md transition cursor-pointer flex items-center gap-3">
+                    <Settings className="h-5 w-5 text-orange-500" />
+                    <div>System Settings</div>
+                  </div>
+                </Link>
+              </CardContent>
+            </Card>
+
+            <Card className="p-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">System Health</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span>API Status</span>
+                  <span className="inline-block px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                    Operational
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Database</span>
+                  <span className="inline-block px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                    Healthy
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Storage</span>
+                  <span className="inline-block px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                    85% Free
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Email Service</span>
+                  <span className="inline-block px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                    Active
+                  </span>
+                </div>
+                <div className="mt-4">
+                  <Link href="/dashboard/system/logs">
+                    <Button variant="outline" className="w-full">
+                      View System Logs
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </>
       )}
 

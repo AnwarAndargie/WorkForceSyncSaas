@@ -12,15 +12,18 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Loader2, Plus, Trash } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Download, Loader2, MailOpen, RefreshCw, Trash, Upload, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { AddUserDialog } from "./add-user-dialog";
+import { ImportUsersDialog } from "./import-users-dialog";
 
 interface User {
   id: string;
   email: string;
   name: string;
   role: string;
+  status?: string;
 }
 
 interface Organization {
@@ -35,6 +38,8 @@ export default function OrganizationUsersPage() {
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchOrganization = async () => {
@@ -48,10 +53,25 @@ export default function OrganizationUsersPage() {
         if (!usersRes.ok) throw new Error("Failed to fetch users");
         const usersData = await usersRes.json();
         
+        // Fetch invitations for this organization
+        const invitationsRes = await fetch(`/api/organization/${id}/invitations`);
+        const invitationsData = invitationsRes.ok ? await invitationsRes.json() : [];
+        
+        // Combine users and pending invitations for display
+        const pendingInvitations = invitationsData
+          .filter((inv: any) => inv.status === 'pending')
+          .map((inv: any) => ({
+            id: inv.id,
+            email: inv.invitedUserEmail,
+            name: "Invited User",
+            role: inv.role,
+            status: 'pending'
+          }));
+        
         setOrganization({
           id: orgData.id,
           name: orgData.name,
-          users: usersData
+          users: [...usersData, ...pendingInvitations]
         });
       } catch (error) {
         console.error(error);
@@ -91,6 +111,60 @@ export default function OrganizationUsersPage() {
     }
   };
 
+  const handleExportUsers = async () => {
+    if (!organization) return;
+    
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/organization/${id}/users/export`, {
+        method: "GET",
+      });
+
+      if (!res.ok) throw new Error("Failed to export users");
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${organization.name}-users.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success("Users exported successfully");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to export users");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleResendInvitation = async (invitationId: string) => {
+    if (!organization) return;
+    
+    const invitation = organization.users.find(user => user.id === invitationId && user.status === 'pending');
+    if (!invitation) return;
+    
+    setResendingInviteId(invitationId);
+    
+    try {
+      const res = await fetch(`/api/organization/${id}/invitations/${invitationId}/resend`, {
+        method: "POST",
+      });
+      
+      if (!res.ok) throw new Error("Failed to resend invitation");
+      
+      toast.success("Invitation resent successfully");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to resend invitation");
+    } finally {
+      setResendingInviteId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -127,6 +201,28 @@ export default function OrganizationUsersPage() {
           >
             Organization Details
           </Button>
+          <Button
+            onClick={handleExportUsers}
+            variant="outline"
+            disabled={exporting}
+            className="gap-2"
+          >
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            Export Users
+          </Button>
+          <ImportUsersDialog 
+            organizationId={id as string}
+            onUsersImported={(users) => {
+              setOrganization({
+                ...organization,
+                users: [...organization.users, ...users]
+              });
+            }} 
+          />
           <AddUserDialog organizationId={id as string} onUserAdded={(user) => {
             setOrganization({
               ...organization,
@@ -144,7 +240,8 @@ export default function OrganizationUsersPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-[150px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -154,19 +251,49 @@ export default function OrganizationUsersPage() {
                   <TableCell>{user.email}</TableCell>
                   <TableCell className="capitalize">{user.role}</TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRemoveUser(user.id)}
-                      disabled={deletingUserId === user.id}
-                      className="text-red-600 hover:text-red-800 hover:bg-red-50"
-                    >
-                      {deletingUserId === user.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash className="h-4 w-4" />
-                      )}
-                    </Button>
+                    {user.status === 'pending' ? (
+                      <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                        <MailOpen className="mr-1 h-3 w-3" /> Invited
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        Active
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex space-x-1">
+                      {user.status === 'pending' ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleResendInvitation(user.id)}
+                          disabled={resendingInviteId === user.id}
+                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                          title="Resend invitation"
+                        >
+                          {resendingInviteId === user.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                        </Button>
+                      ) : null}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveUser(user.id)}
+                        disabled={deletingUserId === user.id}
+                        className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                        title={user.status === 'pending' ? "Cancel invitation" : "Remove user"}
+                      >
+                        {deletingUserId === user.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
