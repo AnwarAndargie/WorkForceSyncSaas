@@ -45,7 +45,7 @@ export const columns: ColumnDef<Organization>[] = [
     header: "Subdomain",
   },
   {
-    accessorKey: "plan.name",
+    accessorKey: "planName",
     header: "Plan",
   },
   {
@@ -111,18 +111,24 @@ function ActionCell({ organization }: { organization: Organization }) {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Actions</DropdownMenuLabel>
           <DropdownMenuItem
-            onClick={() => router.push(`/dashboard/organizations/${organization.id}`)}
+            onClick={() =>
+              router.push(`/dashboard/organizations/${organization.id}`)
+            }
           >
             Edit Details
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={() => router.push(`/dashboard/organizations/${organization.id}/users`)}
+            onClick={() =>
+              router.push(`/dashboard/organizations/${organization.id}/users`)
+            }
           >
             Manage Users
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={() => router.push(`/dashboard/organizations/${organization.id}/plan`)}
+            onClick={() =>
+              router.push(`/dashboard/organizations/${organization.id}/plan`)
+            }
           >
             Manage Plan
           </DropdownMenuItem>
@@ -146,7 +152,10 @@ function ActionCell({ organization }: { organization: Organization }) {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button
@@ -169,4 +178,4 @@ function ActionCell({ organization }: { organization: Organization }) {
       </Dialog>
     </>
   );
-} 
+}

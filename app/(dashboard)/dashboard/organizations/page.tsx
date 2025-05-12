@@ -6,6 +6,7 @@ import { getAllOrganizations } from "@/lib/db/queries/organizations";
 import { getUser } from "@/lib/db/queries/users";
 import { CreateOrganizationDialog } from "./create-organization-dialog";
 import { Organization } from "@/lib/db/schema";
+import { getPlanById } from "@/lib/db/queries/plans";
 
 export const metadata: Metadata = {
   title: "Organizations",
@@ -26,6 +27,16 @@ export default async function OrganizationsPage() {
 
   // Use the query function to get all organizations
   const data = await getAllOrganizations();
+  const organizationsWithPlanName: OrganizationWithPlanName[] =
+    await Promise.all(
+      data.map(async (org: any) => {
+        const plan = await getPlanById(org.planId);
+        return {
+          ...org,
+          planName: plan?.name || "Free",
+        };
+      })
+    );
 
   return (
     <div className="container mx-auto py-10">
@@ -33,7 +44,7 @@ export default async function OrganizationsPage() {
         <h1 className="text-2xl font-bold">Organizations</h1>
         <CreateOrganizationDialog />
       </div>
-      <DataTable columns={columns} data={data} />
+      <DataTable columns={columns} data={organizationsWithPlanName} />
     </div>
   );
 }
