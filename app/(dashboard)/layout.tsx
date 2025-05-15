@@ -11,55 +11,55 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { signOut } from "@/app/(login)/actions";
+
 import { useRouter } from "next/navigation";
-import { User } from "@/lib/db/schema";
+
 import useSWR from "swr";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 function UserMenu() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { data: user } = useSWR<User>("/api/user", fetcher);
-  const { data: organization } = useSWR(
-    `/api/organization/${user?.organizationId}`,
-    fetcher
-  );
+  // const { data: user } = useSWR<User>("/api/user", fetcher);
+  // const { data: organization } = useSWR(
+  //   `/api/organization/${user?.organizationId}`,
+  //   fetcher
+  // );
 
   const router = useRouter();
 
   async function handleSignOut() {
-    await signOut();
+    // await signOut();
     router.refresh();
     router.push("/");
   }
 
-  if (!user) {
-    return (
-      <>
-        <Link
-          href="/pricing"
-          className="text-sm font-medium text-gray-700 hover:text-gray-900"
-        >
-          Pricing
-        </Link>
-        <Button
-          size="lg"
-          className="text-lg w-36 rounded-full bg-orange-600 text-white hover:bg-orange-500 cursor-pointer"
-        >
-          <Link href="/sign-up">Sign Up </Link>
-        </Button>
-      </>
-    );
-  }
+  // if (!user) {
+  //   return (
+  //     <>
+  //       <Link
+  //         href="/pricing"
+  //         className="text-sm font-medium text-gray-700 hover:text-gray-900"
+  //       >
+  //         Pricing
+  //       </Link>
+  //       <Button
+  //         size="lg"
+  //         className="text-lg w-36 rounded-full bg-orange-600 text-white hover:bg-orange-500 cursor-pointer"
+  //       >
+  //         <Link href="/sign-up">Sign Up </Link>
+  //       </Button>
+  //     </>
+  //   );
+  // }
 
   return (
     <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
       <DropdownMenuTrigger>
         <Avatar className="cursor-pointer size-10 bg-organge-500">
-          <AvatarImage alt={user.name || ""} />
+          <AvatarImage alt={""} />
           <AvatarFallback className="bg-amber-600 text-white">
-            {user.email
+            {"Anwar"
               .split(" ")
               .map((n) => n[0])
               .join("")

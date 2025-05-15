@@ -26,7 +26,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import useSWR from "swr";
-import { User } from "@/types/User";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -37,10 +36,13 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { data: user } = useSWR<User>("/api/user", fetcher);
 
   if (!user) {
-    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center">
+        Loading...
+      </div>
+    );
   }
 
   const isSuperAdmin = user.role.role === "super_admin";
@@ -145,7 +147,12 @@ export default function DashboardLayout({
     <div className="flex min-h-screen flex-col bg-muted/40">
       {/* Mobile header */}
       <header className="sticky top-0 z-30 flex h-14 items-center border-b bg-background px-4 lg:hidden">
-        <Button variant="outline" size="icon" onClick={() => setIsSidebarOpen(true)} className="mr-2">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setIsSidebarOpen(true)}
+          className="mr-2"
+        >
           <Menu className="h-5 w-5" />
         </Button>
         <div className="font-semibold">WorkforceSync</div>
@@ -216,9 +223,7 @@ export default function DashboardLayout({
         )}
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto p-4">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto p-4">{children}</main>
       </div>
     </div>
   );
