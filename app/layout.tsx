@@ -1,22 +1,14 @@
 import "./globals.css";
-import type { Metadata, Viewport } from "next";
-import { Manrope } from "next/font/google";
-import { getUser } from "@/lib/db/queries/users";
-import { SWRConfig } from "swr";
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import { ThemeProvider } from "./providers";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Nextjs SaaS Boilerplate",
-  icons: {
-    icon: "/favicon.ico",
-  },
-  description: "Implemente your saas with this boilerplate",
+  title: "WorkforceSync - Workforce Management Solution",
+  description: "Streamline operations for service-based businesses with WorkforceSync",
 };
-
-export const viewport: Viewport = {
-  maximumScale: 1,
-};
-
-const manrope = Manrope({ subsets: ["latin"] });
 
 export default function RootLayout({
   children,
@@ -24,23 +16,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="en"
-      className={`bg-white dark:bg-gray-950 text-black dark:text-white ${manrope.className}`}
-    >
-      <body className="min-h-[100dvh] bg-gray-50">
-        <SWRConfig
-          value={{
-            fallback: {
-              // We do NOT await here
-              // Only components that read this data will suspend
-              "/api/user": getUser(),
-              // "/api/team": getTeamForUser(),
-            },
-          }}
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem
         >
           {children}
-        </SWRConfig>
+        </ThemeProvider>
       </body>
     </html>
   );
