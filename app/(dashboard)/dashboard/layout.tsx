@@ -25,9 +25,6 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import useSWR from "swr";
-
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function DashboardLayout({
   children,
@@ -37,17 +34,14 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  if (!user) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        Loading...
-      </div>
-    );
-  }
+  const user = {
+    name: "Anwar",
+    role: "super_admin",
+  };
 
-  const isSuperAdmin = user.role.role === "super_admin";
-  const isOrgAdmin = user.role.role === "org_admin";
-  const isMember = user.role.role === "member";
+  const isSuperAdmin = user.role === "super_admin";
+  const isOrgAdmin = user.role === "org_admin";
+  const isMember = user.role === "member";
 
   const navItems = [
     { href: "/dashboard", label: "Overview", icon: Home, visible: true },
@@ -208,7 +202,7 @@ export default function DashboardLayout({
               </div>
               <div>
                 <p className="text-sm font-medium">{user.name}</p>
-                <p className="text-xs text-muted-foreground">{user.email}</p>
+                <p className="text-xs text-muted-foreground">{user.name}</p>
               </div>
             </div>
           </div>

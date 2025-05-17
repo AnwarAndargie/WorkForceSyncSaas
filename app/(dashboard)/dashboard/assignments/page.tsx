@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, createContext, useContext, ReactNode } from "react";
 import { 
   Calendar, 
   CheckCircle2, 
@@ -32,6 +32,60 @@ import {
 } from "@/components/ui/select";
 import { Assignment } from "@/types/Assignment";
 import { Badge } from "@/components/ui/badge";
+
+// Create a context for authentication
+const AuthContext = createContext({
+  isAuthenticated: false,
+  login: () => {},
+  logout: () => {},
+  signIn: (username: string, password: string) => {},
+  signUp: (username: string, password: string) => {}
+});
+
+// Custom hook to use the AuthContext
+const useAuth = () => useContext(AuthContext);
+
+// Mock authentication provider component
+function AuthProvider({ children }: { children: ReactNode }) {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const login = () => setIsAuthenticated(true);
+  const logout = () => setIsAuthenticated(false);
+
+  const signIn = (username: string, password: string) => {
+    // Mock sign-in logic
+    console.log(`Signing in with username: ${username}, password: ${password}`);
+    setIsAuthenticated(true);
+  };
+
+  const signUp = (username: string, password: string) => {
+    // Mock sign-up logic
+    console.log(`Signing up with username: ${username}, password: ${password}`);
+    setIsAuthenticated(true);
+  };
+
+  return (
+    <AuthContext.Provider value={{ isAuthenticated, login, logout, signIn, signUp }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+// Protect the AssignmentsPage component
+function ProtectedAssignmentsPage() {
+  const { isAuthenticated, login } = useAuth();
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen">
+        <h2 className="text-2xl mb-4">Please log in to view the dashboard.</h2>
+        <button onClick={login} className="bg-blue-500 text-white px-4 py-2 rounded">Log In</button>
+      </div>
+    );
+  }
+
+  return <AssignmentsPage />;
+}
 
 // Mock data for assignments
 const mockAssignments: Assignment[] = [
@@ -132,7 +186,16 @@ const mockShifts = [
   { id: 7, assignmentId: 5, date: "2023-05-22", startTime: "13:00", endTime: "17:00", status: "scheduled" }
 ];
 
-export default function AssignmentsPage() {
+// Main App component
+export default function App() {
+  return (
+    <AuthProvider>
+      <ProtectedAssignmentsPage />
+    </AuthProvider>
+  );
+}
+
+function AssignmentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [serviceFilter, setServiceFilter] = useState("all");
@@ -355,4 +418,6 @@ export default function AssignmentsPage() {
       </Tabs>
     </div>
   );
-} 
+}
+
+export { useAuth }; 

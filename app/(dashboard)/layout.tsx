@@ -20,11 +20,6 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 function UserMenu() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  // const { data: user } = useSWR<User>("/api/user", fetcher);
-  // const { data: organization } = useSWR(
-  //   `/api/organization/${user?.organizationId}`,
-  //   fetcher
-  // );
 
   const router = useRouter();
 

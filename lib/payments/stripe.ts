@@ -1,11 +1,5 @@
 import Stripe from "stripe";
 import { redirect } from "next/navigation";
-import { Organization, Team } from "@/lib/db/schema";
-import { getUser } from "@/lib/db/queries/users";
-import {
-  getOrganizationByStripeCustomerId,
-  updateOrganizationSubscription,
-} from "@/lib/db/queries";
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-04-30.basil",
@@ -15,10 +9,20 @@ export async function createCheckoutSession({
   org,
   priceId,
 }: {
-  org: Organization | null;
+  org: {
+    stripeCustomerId: string;
+    stripeSubscriptionId: string;
+    stripeProductId: string;
+  } | null;
   priceId: string;
 }) {
-  const user = await getUser();
+  const user = {
+    id: "1",
+    name: "John Doe",
+    email: "john.doe@example.com",
+    role: "admin",
+    organizationId: "1",
+  };
 
   if (!org || !user) {
     redirect(`/sign-up?redirect=checkout&priceId=${priceId}`);
@@ -46,9 +50,13 @@ export async function createCheckoutSession({
   redirect(session.url!);
 }
 
-export async function createCustomerPortalSession(org: Organization) {
+export async function createCustomerPortalSession(org: {
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+  stripeProductId: string;
+}) {
   if (!org?.stripeCustomerId || !org.stripeSubscriptionId) {
-    redirect(`/dashboard/organizations/${org.id}/plan`);
+    redirect(`/dashboard/organizations/${1}/plan`);
   }
 
   let configuration: Stripe.BillingPortal.Configuration;
