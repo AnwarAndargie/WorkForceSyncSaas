@@ -64,7 +64,10 @@ function UserMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="flex flex-col gap-1">
         <DropdownMenuItem className="cursor-pointer">
-          <Link href="/dashboard" className="flex w-full items-center">
+          <Link
+            href="/dashboard"
+            className="flex w-full items-center sticky top-0 z-50 "
+          >
             <Home className="mr-2 h-4 w-4" />
             <span>Dashboard</span>
           </Link>
@@ -84,7 +87,7 @@ function UserMenu() {
 
 function Header() {
   return (
-    <header className="border-b border-gray-200">
+    <header className="border-b border-gray-200 sticky top-0 z-50 bg-secondary">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
         <Link href="/" className="flex items-center">
           <CircleIcon className="h-6 w-6 text-orange-500" />

@@ -134,14 +134,17 @@ export function AppSidebar() {
     },
   ].filter((item) => item.visible);
   return (
-    <Sidebar>
+    <Sidebar className="fixed left-0 top-0 h-screen  w-64 border-r bg-white z-40 mt-22 ml-8">
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Application</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="flex flex-col gap-3">
               {navItems.map((item) => (
-                <SidebarMenuItem key={item.label}>
+                <SidebarMenuItem
+                  key={item.label}
+                  className="w-full flex items-center"
+                >
                   <SidebarMenuButton asChild>
                     <a href={item.href}>
                       <item.icon />
