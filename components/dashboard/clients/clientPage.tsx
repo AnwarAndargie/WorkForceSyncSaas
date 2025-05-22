@@ -35,47 +35,47 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trash, EyeIcon, Pen } from "lucide-react";
+import { Trash, Pen, EyeIcon } from "lucide-react";
 
 const data: Payment[] = [
   {
-    name: "Assefa Security",
+    name: "Addis Ababa University",
     id: "m5gr84i9",
     amount: 316,
-    status: "success",
-    plan: "basic",
+    status: "in-process",
+    branches: 17,
     email: "ken99@example.com",
   },
   {
-    name: "Tebkew Security",
+    name: "Ethiopian Airlines",
     id: "3u1reuv4",
     amount: 242,
-    status: "success",
-    plan: "basic",
+    status: "serving",
+    branches: 2,
     email: "Abe45@example.com",
   },
   {
     id: "derv1ws0",
-    name: "Alemayehu Security",
+    name: "Unity University",
     amount: 837,
-    status: "processing",
-    plan: "Extra Basic",
+    status: "serving",
+    branches: 23,
     email: "Monserrat44@example.com",
   },
   {
     id: "5kma53ae",
-    name: "Abebe Installation",
+    name: "INSA",
     amount: 874,
-    status: "success",
-    plan: "Pro Plan",
+    status: "served",
+    branches: 7,
     email: "Silas22@example.com",
   },
   {
     id: "bhqecj4p",
-    name: "Abebe Maintainance",
+    name: "Ethiopian Electric Power",
     amount: 721,
     status: "failed",
-    plan: "Pro Plan",
+    branches: 3,
     email: "carmella@example.com",
   },
 ];
@@ -84,8 +84,8 @@ export type Payment = {
   id: string;
   name: string;
   amount: number;
-  status: "pending" | "processing" | "success" | "failed";
-  plan: string;
+  status: "serving" | "served" | "in-process" | "failed";
+  branches: number;
   email: string;
 };
 
@@ -150,19 +150,23 @@ export const columns: ColumnDef<Payment>[] = [
     ),
   },
   {
-    accessorKey: "plan",
+    accessorKey: "branches",
     header: ({ column }) => {
       return (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Plan
+          Branches
           <ArrowUpDown />
         </Button>
       );
     },
-    cell: ({ row }) => <div className="lowercase">{row.getValue("plan")}</div>,
+    cell: ({ row }) => (
+      <div className="lowercase flex items-center">
+        {row.getValue("branches")}
+      </div>
+    ),
   },
   {
     accessorKey: "amount",
@@ -195,23 +199,23 @@ export const columns: ColumnDef<Payment>[] = [
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
+            {/* <DropdownMenuItem
               onClick={() => navigator.clipboard.writeText(payment.id)}
             >
               Copy payment ID
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            </DropdownMenuItem> */}
+            {/* <DropdownMenuSeparator /> */}
             <DropdownMenuItem>
-              <EyeIcon /> View Company
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Pen /> Edit Company
+              <EyeIcon /> View Client
             </DropdownMenuItem>
             <DropdownMenuItem>
-              <Trash /> Edit Company
+              <Pen /> Edit Client
             </DropdownMenuItem>
             <DropdownMenuItem>
-              <EyeIcon /> View Clients
+              <Trash /> Edit Client
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <EyeIcon /> View Branches
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -220,7 +224,7 @@ export const columns: ColumnDef<Payment>[] = [
   },
 ];
 
-export function CompanyClient() {
+export function ClientPage() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -252,19 +256,13 @@ export function CompanyClient() {
     <div className="w-full">
       <div className="mb-4">
         <div className="flex items-center justify-between py-4">
-          <h1 className="text-2xl font-bold">Companies</h1>
-          <Button
-            variant="outline"
-            className="ml-auto mb-4"
-            onClick={() => {
-              // Handle create new company action
-            }}
-          >
-            Create New Company
+          <h1 className="text-2xl font-bold">Manage Your Clients</h1>
+          <Button variant="outline" className="ml-auto">
+            Add Client
           </Button>
         </div>
         <p className="text-sm text-muted-foreground">
-          Manage your companies here.
+          You can manage your clients here.
         </p>
       </div>
       <div className="flex items-center py-4">

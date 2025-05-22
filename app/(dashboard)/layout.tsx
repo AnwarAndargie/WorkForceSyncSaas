@@ -32,9 +32,9 @@ function UserMenu() {
   return (
     <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
       <DropdownMenuTrigger>
-        <Avatar className="cursor-pointer size-10 bg-organge-500">
+        <Avatar className="cursor-pointer size-10 bg-white-500">
           <AvatarImage alt={""} />
-          <AvatarFallback className="bg-amber-600 text-white">
+          <AvatarFallback className="bg-white-500 text-secondary">
             {"Anwar"
               .split(" ")
               .map((n) => n[0])
@@ -71,10 +71,8 @@ function Header() {
     <header className="border-b border-gray-200 sticky top-0 z-50 bg-secondary">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
         <Link href="/" className="flex items-center">
-          <CircleIcon className="h-6 w-6 text-orange-500" />
-          <span className="ml-2 text-xl font-semibold text-gray-900">
-            WorkForceInc
-          </span>
+          <CircleIcon className="h-6 w-6 text-white-600" />
+          <span className="ml-2 text-xl font-bold">WorkForceInc</span>
         </Link>
         <div className="flex items-center space-x-4">
           <Suspense fallback={<div className="h-9" />}>
