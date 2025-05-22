@@ -17,15 +17,13 @@ export default function DashboardLayout({
         <div className="font-semibold">WorkforceSync</div>
       </header>
 
-      <div className="flex flex-between overflow-hidden">
-        <div>
+      <div className="flex flex-row space-x-12 w-[100vw]">
+        <div className="w-7">
           <AppSidebar />
         </div>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto p-4 w-full ml-64">
-          {children}
-        </main>
+        <div className=" min-w-2xl overflow-y-auto p-4 ml-78">{children}</div>
       </div>
     </div>
   );
