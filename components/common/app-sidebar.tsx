@@ -55,7 +55,7 @@ export function AppSidebar() {
       visible: true,
     },
     {
-      href: "/dashboard/team",
+      href: "/dashboard/work-forces",
       label: "Workforce",
       icon: Users,
       visible: isOrgAdmin || isSuperAdmin,
