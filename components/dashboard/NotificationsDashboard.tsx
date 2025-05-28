@@ -58,7 +58,7 @@ const mockNotifications: Notification[] = [
   },
 ];
 
-export default function NotificationsPage() {
+export function NotificationsDashboard() {
   const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
@@ -195,4 +195,4 @@ export default function NotificationsPage() {
       </Card>
     </div>
   );
-}
+} 

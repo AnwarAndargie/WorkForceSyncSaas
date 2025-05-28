@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BarChart3, 
   Users, 
@@ -8,7 +8,6 @@ import {
   ArrowUpRight,
   ArrowDownRight
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 interface StatCardProps {
   title: string;
@@ -46,7 +45,7 @@ function StatCard({ title, value, description, icon, trend, percentage }: StatCa
   );
 }
 
-export default function DashboardPage() {
+export function DashboardOverview() {
   return (
     <div className="space-y-6">
       <div>
@@ -127,4 +126,4 @@ export default function DashboardPage() {
       </div>
     </div>
   );
-}
+} 
