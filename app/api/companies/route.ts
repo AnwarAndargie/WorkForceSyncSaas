@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { tenants, users } from "@/lib/db/schema";
+import { tenants, users, TenantMembers } from "@/lib/db/schema";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/response";
 import { generateId, generateSlug } from "@/lib/db/utils";
 import { eq, desc, like, count, and } from "drizzle-orm";
+import { serial } from "drizzle-orm/mysql-core";
 
 /**
  * GET /api/tenants
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
 
-    const { name, ownerId, logo } = body;
+    const { name, ownerId, logo, email, phone, address } = body;
 
     // Verify that the owner exists
     const owner = await db
@@ -101,13 +102,17 @@ export async function POST(request: NextRequest) {
       counter++;
     }
 
-    const orgId = generateId("org");
+    const orgId = serial("id");
 
     // Create organization
     const newOrg = {
-      id: orgId,
+      // id: orgId,
       name,
       slug,
+      email,
+      address,
+      phone,
+      ownerId,
     };
 
     await db.insert(tenants).values(newOrg);
@@ -127,7 +132,7 @@ export async function POST(request: NextRequest) {
       role: "owner" as const,
     };
 
-    await db.insert(organizationMembers).values(memberData);
+    await db.insert(users).values(memberData);
 
     return createSuccessResponse(createdOrg, 201);
   } catch (error) {

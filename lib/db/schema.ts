@@ -20,6 +20,7 @@ export const tenants = mysqlTable("tenants", {
   email: varchar("email", { length: 255 }).unique(),
   phone: varchar("phone", { length: 20 }),
   address: text("address"),
+  ownerId: serial("ownerId").references((): any => users.id),
   createdAt: datetime("created_at"),
 });
 
@@ -30,7 +31,7 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 255 }).unique(),
   role: mysqlEnum("role", ["admin", "manager", "employee"]),
   passwordHash: text("password_hash"),
-  isActive: boolean("is_active"),
+  isActive: boolean("is_active").default(true),
   createdAt: datetime("created_at"),
 });
 
@@ -135,8 +136,9 @@ export const notifications = mysqlTable("notifications", {
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
-export type Organization = typeof tenants.$inferSelect;
-export type NewOrganization = typeof tenants.$inferInsert;
+export type Tenant = typeof tenants.$inferSelect;
+export type NewTenant = typeof tenants.$inferInsert;
+export type TenantMembers = typeof tenants.$inferInsert;
 
 export type Plan = typeof subscriptionPlans.$inferSelect;
 export type NewPlan = typeof subscriptionPlans.$inferInsert;
