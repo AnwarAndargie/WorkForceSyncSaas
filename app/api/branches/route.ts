@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { branches, users } from "@/lib/db/schema";
+import { branches, users, clients, tenants } from "@/lib/db/schema";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -10,27 +10,42 @@ import {
 } from "@/lib/api/response";
 import { generateId } from "@/lib/db/utils";
 import { eq, desc, like, and, sql } from "drizzle-orm";
+import { getSessionUserId } from "@/lib/auth/session";
+import { checkUserAccess } from "@/lib/auth/authorization";
 
 /**
  * GET /api/branches
- * List branches with pagination and search
+ * List branches scoped to user privilege
  */
 export async function GET(request: NextRequest) {
   try {
+    const userId = await getSessionUserId(request);
+    if (!userId) return createErrorResponse("Unauthorized", 401);
+
     const { searchParams } = new URL(request.url);
+    const tenantId = searchParams.get("tenantId");
+    const clientId = searchParams.get("clientId");
+
+    if (!tenantId) return createErrorResponse("Missing tenantId", 400);
+
+    const authorized = await checkUserAccess(
+      userId,
+      tenantId,
+      clientId ?? undefined
+    );
+    if (!authorized) return createErrorResponse("Forbidden", 403);
+
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 100);
     const search = searchParams.get("search");
     const offset = (page - 1) * limit;
 
-    const conditions = [];
-    if (search) {
-      conditions.push(like(branches.name, `%${search}%`));
-    }
-    
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const conditions = [eq(branches.tenantId, tenantId)];
+    if (clientId) conditions.push(eq(branches.clientId, clientId));
+    if (search) conditions.push(like(branches.name, `%${search}%`));
 
-    // Get branches with supervisor details
+    const whereClause = and(...conditions);
+
     const branchesList = await db
       .select({
         id: branches.id,
@@ -61,41 +76,38 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/branches
- * Create a new branch
+ * Create branch under a tenant & client with privilege check
  */
 export async function POST(request: NextRequest) {
   try {
+    const userId = await getSessionUserId(request);
+    if (!userId) return createErrorResponse("Unauthorized", 401);
+
     const body = await request.json();
-    const validationError = validateRequiredFields(body, ["name"]);
-    if (validationError) {
+    const validationError = validateRequiredFields(body, [
+      "name",
+      "tenantId",
+      "clientId",
+    ]);
+    if (validationError)
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
-    }
 
-    const { name, address, supervisorId } = body;
+    const { name, address, supervisorId, tenantId, clientId } = body;
 
-    // Verify supervisor exists if provided
-    if (supervisorId) {
-      const supervisor = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, supervisorId))
-        .limit(1);
-
-      if (supervisor.length === 0) {
-        return createErrorResponse("Supervisor not found", 404, "SUPERVISOR_NOT_FOUND");
-      }
-    }
+    const authorized = await checkUserAccess(userId, tenantId, clientId);
+    if (!authorized) return createErrorResponse("Forbidden", 403);
 
     const newBranch = {
       id: generateId("branch"),
       name,
       address: address || null,
       supervisorId: supervisorId || null,
+      tenantId,
+      clientId,
     };
 
     await db.insert(branches).values(newBranch);
 
-    // Return the created branch with joined data
     const createdBranch = await db
       .select({
         id: branches.id,
@@ -114,4 +126,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleDatabaseError(error);
   }
-} 
+}

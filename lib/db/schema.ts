@@ -7,16 +7,17 @@ import {
   datetime,
   date,
   decimal,
-  int,
   mysqlEnum,
   primaryKey,
   index,
+  timestamp,
 } from "drizzle-orm/mysql-core";
 import { generateId } from "./utils";
 
 export const tenants = mysqlTable("tenants", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  clientId: int("client_id").references((): any => clients.id),
+  clientId: varchar("client_id").references((): any => clients.id),
+  adminId: varchar("adminId").references((): any => users.id),
   slug: varchar("name", { length: 255 }),
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 255 }).unique(),
@@ -29,10 +30,15 @@ export const tenants = mysqlTable("tenants", {
 
 export const users = mysqlTable("users", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  tenantId: int("tenant_id").references(() => tenants.id),
+  tenantId: varchar("tenant_id").references(() => tenants.id),
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 255 }).unique(),
-  role: mysqlEnum("role", ["admin", "manager", "employee"]),
+  role: mysqlEnum("role", [
+    "super_admin",
+    "client_admin",
+    "tenant_admin",
+    "employee",
+  ]),
   passwordHash: text("password_hash"),
   isActive: boolean("is_active").default(true),
   createdAt: datetime("created_at"),
@@ -56,32 +62,39 @@ export const TenantMembers = mysqlTable(
 
 export const clients = mysqlTable("clients", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  tenantId: int("tenant_id").references(() => tenants.id),
+  tenantId: varchar("tenant_id").references(() => tenants.id),
+  adminId: varchar("id", { length: 128 }).references(() => users.id),
   name: varchar("name", { length: 255 }),
   phone: varchar("phone", { length: 20 }),
   address: text("address"),
-  branchId: int("branch_id").references(() => branches.id),
 });
 
 export const branches = mysqlTable("branches", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  name: varchar("name", { length: 255 }),
+  id: varchar("id", { length: 128 }).primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
   address: text("address"),
-  supervisorId: int("supervisor_id").references(() => users.id),
+  supervisorId: varchar("id", { length: 128 }).references(() => users.id),
+  tenantId: varchar("id", { length: 128 })
+    .notNull()
+    .references(() => tenants.id),
+  clientId: varchar("id", { length: 128 })
+    .notNull()
+    .references(() => clients.id),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const employeeBranches = mysqlTable("employee_branches", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  employeeId: int("employee_id").references(() => users.id),
-  branchId: int("branch_id").references(() => branches.id),
+  employeeId: varchar("employee_id").references(() => users.id),
+  branchId: varchar("branch_id").references(() => branches.id),
   roleAtBranch: varchar("role_at_branch", { length: 100 }),
   assignedAt: datetime("assigned_at"),
 });
 
 export const assignments = mysqlTable("assignments", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  employeeId: int("employee_id").references(() => users.id),
-  clientId: int("customer_id").references(() => clients.id),
+  employeeId: varchar("employee_id").references(() => users.id),
+  clientId: varchar("customer_id").references(() => clients.id),
   startDate: date("start_date"),
   endDate: date("end_date"),
   status: mysqlEnum("status", ["active", "inactive", "completed"]),
@@ -89,9 +102,9 @@ export const assignments = mysqlTable("assignments", {
 
 export const shifts = mysqlTable("shifts", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  assignmentId: int("assignment_id").references(() => assignments.id),
-  branchId: int("branch_id").references(() => branches.id),
-  employeeId: int("employee_id").references(() => users.id),
+  assignmentId: varchar("assignment_id").references(() => assignments.id),
+  branchId: varchar("branch_id").references(() => branches.id),
+  employeeId: varchar("employee_id").references(() => users.id),
   startTime: datetime("start_time"),
   endTime: datetime("end_time"),
   shiftType: varchar("shift_type", { length: 100 }),
@@ -100,15 +113,15 @@ export const shifts = mysqlTable("shifts", {
 
 export const reports = mysqlTable("reports", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  assignmentId: int("assignment_id").references(() => assignments.id),
+  assignmentId: varchar("assignment_id").references(() => assignments.id),
   reportText: text("report_text"),
   createdAt: datetime("created_at"),
 });
 
 export const contracts = mysqlTable("contracts", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  tenantId: int("tenant_id").references(() => tenants.id),
-  clientId: int("customer_id").references(() => clients.id),
+  tenantId: varchar("tenant_id").references(() => tenants.id),
+  clientId: varchar("customer_id").references(() => clients.id),
   startDate: date("start_date"),
   endDate: date("end_date"),
   terms: text("terms"),
@@ -117,7 +130,7 @@ export const contracts = mysqlTable("contracts", {
 
 export const invoices = mysqlTable("invoices", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  contractId: int("contract_id").references(() => contracts.id),
+  contractId: varchar("contract_id").references(() => contracts.id),
   amount: decimal("amount", { precision: 10, scale: 2 }),
   dueDate: date("due_date"),
   paid: boolean("paid"),
@@ -135,8 +148,8 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
 
 export const subscriptions = mysqlTable("subscriptions", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  tenantId: int("tenant_id").references(() => tenants.id),
-  planId: int("plan_id").references(() => subscriptionPlans.id),
+  tenantId: varchar("tenant_id").references(() => tenants.id),
+  planId: varchar("plan_id").references(() => subscriptionPlans.id),
   startDate: date("start_date"),
   endDate: date("end_date"),
   isActive: boolean("is_active"),
@@ -144,7 +157,7 @@ export const subscriptions = mysqlTable("subscriptions", {
 
 export const notifications = mysqlTable("notifications", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  userId: int("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id),
   title: varchar("title", { length: 255 }),
   message: text("message"),
   isRead: boolean("is_read"),
