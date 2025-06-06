@@ -9,23 +9,26 @@ import {
   decimal,
   int,
   mysqlEnum,
+  primaryKey,
+  index,
 } from "drizzle-orm/mysql-core";
 import { generateId } from "./utils";
 
 export const tenants = mysqlTable("tenants", {
-  id: serial("id").primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey(),
   clientId: int("client_id").references((): any => clients.id),
   slug: varchar("name", { length: 255 }),
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 255 }).unique(),
   phone: varchar("phone", { length: 20 }),
   address: text("address"),
+  logo: varchar("name", { length: 255 }),
   ownerId: serial("ownerId").references((): any => users.id),
   createdAt: datetime("created_at"),
 });
 
 export const users = mysqlTable("users", {
-  id: serial("id").primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey(),
   tenantId: int("tenant_id").references(() => tenants.id),
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 255 }).unique(),
@@ -34,9 +37,25 @@ export const users = mysqlTable("users", {
   isActive: boolean("is_active").default(true),
   createdAt: datetime("created_at"),
 });
+export const TenantMembers = mysqlTable(
+  "tenant_members",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(), // generated with generateId("member")
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id),
+    tenantId: varchar("tenant_id", { length: 36 })
+      .notNull()
+      .references(() => tenants.id),
+  },
+  (table) => ({
+    tenantUserIndex: index("org_user_idx").on(table.tenantId, table.userId),
+    pk: primaryKey({ columns: [table.id] }),
+  })
+);
 
 export const clients = mysqlTable("clients", {
-  id: serial("id").primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey(),
   tenantId: int("tenant_id").references(() => tenants.id),
   name: varchar("name", { length: 255 }),
   phone: varchar("phone", { length: 20 }),
@@ -45,14 +64,14 @@ export const clients = mysqlTable("clients", {
 });
 
 export const branches = mysqlTable("branches", {
-  id: serial("id").primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey(),
   name: varchar("name", { length: 255 }),
   address: text("address"),
   supervisorId: int("supervisor_id").references(() => users.id),
 });
 
 export const employeeBranches = mysqlTable("employee_branches", {
-  id: serial("id").primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey(),
   employeeId: int("employee_id").references(() => users.id),
   branchId: int("branch_id").references(() => branches.id),
   roleAtBranch: varchar("role_at_branch", { length: 100 }),
@@ -60,7 +79,7 @@ export const employeeBranches = mysqlTable("employee_branches", {
 });
 
 export const assignments = mysqlTable("assignments", {
-  id: serial("id").primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey(),
   employeeId: int("employee_id").references(() => users.id),
   clientId: int("customer_id").references(() => clients.id),
   startDate: date("start_date"),
@@ -69,7 +88,7 @@ export const assignments = mysqlTable("assignments", {
 });
 
 export const shifts = mysqlTable("shifts", {
-  id: serial("id").primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey(),
   assignmentId: int("assignment_id").references(() => assignments.id),
   branchId: int("branch_id").references(() => branches.id),
   employeeId: int("employee_id").references(() => users.id),
@@ -80,14 +99,14 @@ export const shifts = mysqlTable("shifts", {
 });
 
 export const reports = mysqlTable("reports", {
-  id: serial("id").primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey(),
   assignmentId: int("assignment_id").references(() => assignments.id),
   reportText: text("report_text"),
   createdAt: datetime("created_at"),
 });
 
 export const contracts = mysqlTable("contracts", {
-  id: serial("id").primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey(),
   tenantId: int("tenant_id").references(() => tenants.id),
   clientId: int("customer_id").references(() => clients.id),
   startDate: date("start_date"),
@@ -97,7 +116,7 @@ export const contracts = mysqlTable("contracts", {
 });
 
 export const invoices = mysqlTable("invoices", {
-  id: serial("id").primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey(),
   contractId: int("contract_id").references(() => contracts.id),
   amount: decimal("amount", { precision: 10, scale: 2 }),
   dueDate: date("due_date"),
@@ -106,7 +125,7 @@ export const invoices = mysqlTable("invoices", {
 });
 
 export const subscriptionPlans = mysqlTable("subscription_plans", {
-  id: serial("id").primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey(),
   name: varchar("name", { length: 255 }),
   description: text("description"),
   price: decimal("price", { precision: 10, scale: 2 }),
@@ -115,7 +134,7 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
 });
 
 export const subscriptions = mysqlTable("subscriptions", {
-  id: serial("id").primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey(),
   tenantId: int("tenant_id").references(() => tenants.id),
   planId: int("plan_id").references(() => subscriptionPlans.id),
   startDate: date("start_date"),
@@ -124,7 +143,7 @@ export const subscriptions = mysqlTable("subscriptions", {
 });
 
 export const notifications = mysqlTable("notifications", {
-  id: serial("id").primaryKey(),
+  id: varchar("id", { length: 36 }).primaryKey(),
   userId: int("user_id").references(() => users.id),
   title: varchar("title", { length: 255 }),
   message: text("message"),

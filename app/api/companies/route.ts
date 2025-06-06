@@ -1,3 +1,5 @@
+// src/app/api/tenants/route.ts
+
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
 import { tenants, users, TenantMembers } from "@/lib/db/schema";
@@ -9,8 +11,7 @@ import {
   createPaginationMeta,
 } from "@/lib/api/response";
 import { generateId, generateSlug } from "@/lib/db/utils";
-import { eq, desc, like, count, and } from "drizzle-orm";
-import { serial } from "drizzle-orm/mysql-core";
+import { eq, desc, like, and, sql } from "drizzle-orm";
 
 /**
  * GET /api/tenants
@@ -24,28 +25,26 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search");
     const offset = (page - 1) * limit;
 
-    // Build where conditions
     const conditions = [];
     if (search) {
       conditions.push(like(tenants.name, `%${search}%`));
     }
-
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Execute queries
-    const [orgList, totalCount] = await Promise.all([
-      db
-        .select()
-        .from(tenants)
-        .where(whereClause)
-        .orderBy(desc(tenants.createdAt))
-        .limit(limit)
-        .offset(offset),
-      db.select({ count: count() }).from(tenants).where(whereClause),
-    ]);
+    const orgList = await db
+      .select()
+      .from(tenants)
+      .where(whereClause)
+      .orderBy(desc(tenants.createdAt))
+      .limit(limit)
+      .offset(offset);
 
-    const meta = createPaginationMeta(totalCount[0].count, page, limit);
+    const [{ count }] = await db
+      .select({ count: sql`COUNT(*)`.mapWith(Number) })
+      .from(tenants)
+      .where(whereClause);
 
+    const meta = createPaginationMeta(count, page, limit);
     return createSuccessResponse(orgList, 200, meta);
   } catch (error) {
     return handleDatabaseError(error);
@@ -54,13 +53,11 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/tenants
- * Create a new organization
+ * Create a new tenant
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-
-    // Validate required fields
     const validationError = validateRequiredFields(body, ["name", "ownerId"]);
     if (validationError) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
@@ -68,7 +65,6 @@ export async function POST(request: NextRequest) {
 
     const { name, ownerId, logo, email, phone, address } = body;
 
-    // Verify that the owner exists
     const owner = await db
       .select()
       .from(users)
@@ -83,58 +79,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate slug from name
     const baseSlug = generateSlug(name);
     let slug = baseSlug;
     let counter = 1;
 
-    // Ensure slug is unique
     while (true) {
-      const existingOrg = await db
+      const existing = await db
         .select()
         .from(tenants)
         .where(eq(tenants.slug, slug))
         .limit(1);
 
-      if (existingOrg.length === 0) break;
-
-      slug = `${baseSlug}-${counter}`;
-      counter++;
+      if (existing.length === 0) break;
+      slug = `${baseSlug}-${counter++}`;
     }
 
-    const orgId = serial("id");
-
-    // Create organization
-    const newOrg = {
-      // id: orgId,
+    const insertResult = await db.insert(tenants).values({
       name,
       slug,
       email,
       address,
       phone,
       ownerId,
-    };
+      logo,
+    });
 
-    await db.insert(tenants).values(newOrg);
-
-    // Get the created organization
-    const [createdOrg] = await db
+    const createdTenant = await db
       .select()
       .from(tenants)
-      .where(eq(tenants.id, orgId))
+      .where(eq(tenants.slug, slug))
       .limit(1);
 
-    // Add owner as organization member
+    if (createdTenant.length === 0) {
+      return createErrorResponse("Failed to create tenant", 500);
+    }
+
     const memberData = {
       id: generateId("member"),
       userId: ownerId,
-      organizationId: orgId,
+      organizationId: createdTenant[0].id,
       role: "owner" as const,
     };
 
-    await db.insert(users).values(memberData);
+    await db.insert(TenantMembers).values(memberData);
 
-    return createSuccessResponse(createdOrg, 201);
+    return createSuccessResponse(createdTenant[0], 201);
   } catch (error) {
     return handleDatabaseError(error);
   }

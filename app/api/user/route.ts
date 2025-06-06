@@ -1,12 +1,12 @@
-import { NextRequest } from 'next/server';
-import { db } from '@/lib/db/drizzle';
-import { users } from '@/lib/db/schema';
-import { 
-  createSuccessResponse, 
-  createErrorResponse, 
-  handleDatabaseError 
-} from '@/lib/api/response';
-import { eq } from 'drizzle-orm';
+import { NextRequest } from "next/server";
+import { db } from "@/lib/db/drizzle";
+import { users } from "@/lib/db/schema";
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  handleDatabaseError,
+} from "@/lib/api/response";
+import { eq } from "drizzle-orm";
 
 /**
  * GET /api/user
@@ -17,10 +17,16 @@ export async function GET(request: NextRequest) {
   try {
     // In a real application, you would get the user ID from the session/JWT token
     // For now, we'll use a query parameter or header
-    const userId = request.headers.get('x-user-id') || request.nextUrl.searchParams.get('userId');
-    
+    const userId =
+      request.headers.get("x-user-id") ||
+      request.nextUrl.searchParams.get("userId");
+
     if (!userId) {
-      return createErrorResponse('User ID is required', 400, 'USER_ID_REQUIRED');
+      return createErrorResponse(
+        "User ID is required",
+        400,
+        "USER_ID_REQUIRED"
+      );
     }
 
     const user = await db
@@ -30,14 +36,14 @@ export async function GET(request: NextRequest) {
       .limit(1);
 
     if (user.length === 0) {
-      return createErrorResponse('User not found', 404, 'USER_NOT_FOUND');
+      return createErrorResponse("User not found", 404, "USER_NOT_FOUND");
     }
 
     // Remove password from response
-    const { password, ...safeUser } = user[0];
+    const { passwordHash, ...safeUser } = user[0];
 
     return createSuccessResponse(safeUser);
   } catch (error) {
     return handleDatabaseError(error);
   }
-} 
+}
