@@ -7,17 +7,30 @@ import {
   createErrorResponse,
   handleDatabaseError,
 } from "@/lib/api/response";
+import { getSessionUser } from "@/lib/auth/session";
+import { canPerformWriteOperation, authorizeUserFor } from "@/lib/auth/authorization";
 
 /**
  * GET /api/assignments/[id]
- * Get a specific assignment
+ * Get a specific assignment (with auth)
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
     const assignmentId = params.id;
+
+    // Check authorization
+    const authorized = await authorizeUserFor("assignment", assignmentId, user);
+    if (!authorized) {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    }
 
     const assignment = await db
       .select({
@@ -49,14 +62,30 @@ export async function GET(
 
 /**
  * PATCH /api/assignments/[id]
- * Update an assignment
+ * Update an assignment (with auth)
  */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    if (!canPerformWriteOperation(user)) {
+      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+    }
+
     const assignmentId = params.id;
+
+    // Check authorization
+    const authorized = await authorizeUserFor("assignment", assignmentId, user);
+    if (!authorized) {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    }
+
     const body = await request.json();
 
     const allowedFields = ["employeeId", "clientId", "startDate", "endDate", "status"];
@@ -130,14 +159,29 @@ export async function PATCH(
 
 /**
  * DELETE /api/assignments/[id]
- * Delete an assignment
+ * Delete an assignment (with auth)
  */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    if (!canPerformWriteOperation(user)) {
+      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+    }
+
     const assignmentId = params.id;
+
+    // Check authorization
+    const authorized = await authorizeUserFor("assignment", assignmentId, user);
+    if (!authorized) {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    }
 
     // Check if assignment exists
     const existingAssignment = await db

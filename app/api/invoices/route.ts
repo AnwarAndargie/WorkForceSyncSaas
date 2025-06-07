@@ -10,27 +10,50 @@ import {
 } from "@/lib/api/response";
 import { generateId } from "@/lib/db/utils";
 import { eq, desc, like, and, sql } from "drizzle-orm";
+import { getSessionUser } from "@/lib/auth/session";
+import { canPerformWriteOperation, getTenantScopeCondition } from "@/lib/auth/authorization";
 
 /**
  * GET /api/invoices
- * List invoices with pagination and search
+ * List invoices with pagination and search (with auth)
  */
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 100);
     const search = searchParams.get("search");
-    const paid = searchParams.get("paid");
     const contractId = searchParams.get("contractId");
+    const paid = searchParams.get("paid");
     const offset = (page - 1) * limit;
 
     const conditions = [];
-    if (paid !== null && paid !== undefined) {
-      conditions.push(eq(invoices.paid, paid === "true"));
+    
+    // Apply role-based filtering
+    if (user.role === "tenant_admin" && user.tenantId) {
+      // Filter by tenant through contracts
+      conditions.push(eq(contracts.tenantId, user.tenantId));
+    } else if (user.role === "client_admin" && user.clientId) {
+      // Filter by client through contracts
+      conditions.push(eq(contracts.clientId, user.clientId));
     }
+
     if (contractId) {
-      conditions.push(eq(invoices.contractId, parseInt(contractId)));
+      conditions.push(eq(invoices.contractId, contractId));
+    }
+
+    if (paid !== null && paid !== undefined) {
+      conditions.push(eq(invoices.paid, paid === 'true'));
+    }
+
+    if (search) {
+      // Search by amount or contract ID
+      conditions.push(like(invoices.contractId, `%${search}%`));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -44,6 +67,7 @@ export async function GET(request: NextRequest) {
         dueDate: invoices.dueDate,
         paid: invoices.paid,
         paidAt: invoices.paidAt,
+        contractStatus: contracts.status,
         clientName: clients.name,
         tenantName: tenants.name,
       })
@@ -59,6 +83,7 @@ export async function GET(request: NextRequest) {
     const [{ count }] = await db
       .select({ count: sql`COUNT(*)`.mapWith(Number) })
       .from(invoices)
+      .leftJoin(contracts, eq(invoices.contractId, contracts.id))
       .where(whereClause);
 
     const meta = createPaginationMeta(count, page, limit);
@@ -70,21 +95,35 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/invoices
- * Create a new invoice
+ * Create a new invoice (with auth)
  */
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    if (!canPerformWriteOperation(user)) {
+      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+    }
+
     const body = await request.json();
     const validationError = validateRequiredFields(body, ["contractId", "amount", "dueDate"]);
     if (validationError) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
 
-    const { contractId, amount, dueDate, paid } = body;
+    const { contractId, amount, dueDate, paid = false, paidAt } = body;
 
-    // Verify contract exists
+    // Verify contract exists and user has access
     const contract = await db
-      .select()
+      .select({
+        id: contracts.id,
+        tenantId: contracts.tenantId,
+        clientId: contracts.clientId,
+        status: contracts.status,
+      })
       .from(contracts)
       .where(eq(contracts.id, contractId))
       .limit(1);
@@ -93,13 +132,23 @@ export async function POST(request: NextRequest) {
       return createErrorResponse("Contract not found", 404, "CONTRACT_NOT_FOUND");
     }
 
+    // Check tenant access
+    const contractData = contract[0];
+    if (user.role === "tenant_admin" && user.tenantId !== contractData.tenantId) {
+      return createErrorResponse("Forbidden: Cannot access this contract", 403, "FORBIDDEN");
+    }
+
+    if (user.role === "client_admin" && user.clientId !== contractData.clientId) {
+      return createErrorResponse("Forbidden: Cannot access this contract", 403, "FORBIDDEN");
+    }
+
     const newInvoice = {
       id: generateId("invoice"),
       contractId,
-      amount: amount.toString(), // Convert to string for decimal field
+      amount: amount.toString(),
       dueDate: new Date(dueDate),
-      paid: paid || false,
-      paidAt: paid ? new Date() : null,
+      paid: Boolean(paid),
+      paidAt: paidAt ? new Date(paidAt) : null,
     };
 
     await db.insert(invoices).values(newInvoice);
@@ -113,6 +162,7 @@ export async function POST(request: NextRequest) {
         dueDate: invoices.dueDate,
         paid: invoices.paid,
         paidAt: invoices.paidAt,
+        contractStatus: contracts.status,
         clientName: clients.name,
         tenantName: tenants.name,
       })

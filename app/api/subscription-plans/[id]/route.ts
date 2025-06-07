@@ -7,16 +7,22 @@ import {
   createErrorResponse,
   handleDatabaseError,
 } from "@/lib/api/response";
+import { getSessionUser } from "@/lib/auth/session";
 
 /**
  * GET /api/subscription-plans/[id]
- * Get a specific subscription plan
+ * Get a specific subscription plan (with auth)
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
     const planId = params.id;
 
     const plan = await db
@@ -37,13 +43,23 @@ export async function GET(
 
 /**
  * PATCH /api/subscription-plans/[id]
- * Update a subscription plan
+ * Update a subscription plan (with auth - super_admin only)
  */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    // Only super_admin can update subscription plans
+    if (user.role !== "super_admin") {
+      return createErrorResponse("Forbidden: Only super admins can update subscription plans", 403, "FORBIDDEN");
+    }
+
     const planId = params.id;
     const body = await request.json();
 
@@ -54,11 +70,6 @@ export async function PATCH(
       if (key in body) {
         if (key === "price") {
           updatePayload[key] = body[key].toString();
-        } else if (key === "billingCycle") {
-          if (!["monthly", "yearly"].includes(body[key])) {
-            return createErrorResponse("Invalid billing cycle. Must be 'monthly' or 'yearly'", 400, "INVALID_BILLING_CYCLE");
-          }
-          updatePayload[key] = body[key];
         } else {
           updatePayload[key] = body[key];
         }
@@ -97,13 +108,23 @@ export async function PATCH(
 
 /**
  * DELETE /api/subscription-plans/[id]
- * Delete a subscription plan
+ * Delete a subscription plan (with auth - super_admin only)
  */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    // Only super_admin can delete subscription plans
+    if (user.role !== "super_admin") {
+      return createErrorResponse("Forbidden: Only super admins can delete subscription plans", 403, "FORBIDDEN");
+    }
+
     const planId = params.id;
 
     // Check if plan exists

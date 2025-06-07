@@ -10,31 +10,54 @@ import {
 } from "@/lib/api/response";
 import { generateId } from "@/lib/db/utils";
 import { eq, desc, like, and, sql } from "drizzle-orm";
+import { getSessionUser } from "@/lib/auth/session";
+import { canPerformWriteOperation, checkTenantAccess } from "@/lib/auth/authorization";
 
 /**
  * GET /api/subscriptions
- * List subscriptions with pagination and search
+ * List subscriptions with pagination and search (with auth)
  */
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 100);
+    const search = searchParams.get("search");
     const tenantId = searchParams.get("tenantId");
     const isActive = searchParams.get("isActive");
     const offset = (page - 1) * limit;
 
     const conditions = [];
-    if (tenantId) {
-      conditions.push(eq(subscriptions.tenantId, parseInt(tenantId)));
+    
+    // Apply role-based filtering
+    if (user.role === "super_admin") {
+      // Super admin can see all subscriptions, optionally filtered
+      if (tenantId) {
+        conditions.push(eq(subscriptions.tenantId, tenantId));
+      }
+    } else if (user.role === "tenant_admin" && user.tenantId) {
+      // Tenant admin can only see their tenant's subscriptions
+      conditions.push(eq(subscriptions.tenantId, user.tenantId));
+    } else {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
     }
+
     if (isActive !== null && isActive !== undefined) {
-      conditions.push(eq(subscriptions.isActive, isActive === "true"));
+      conditions.push(eq(subscriptions.isActive, isActive === 'true'));
+    }
+
+    if (search) {
+      // Search by tenant name or plan name
+      conditions.push(like(tenants.name, `%${search}%`));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Get subscriptions with tenant and plan details
     const subscriptionsList = await db
       .select({
         id: subscriptions.id,
@@ -46,7 +69,7 @@ export async function GET(request: NextRequest) {
         tenantName: tenants.name,
         planName: subscriptionPlans.name,
         planPrice: subscriptionPlans.price,
-        planBillingCycle: subscriptionPlans.billingCycle,
+        billingCycle: subscriptionPlans.billingCycle,
       })
       .from(subscriptions)
       .leftJoin(tenants, eq(subscriptions.tenantId, tenants.id))
@@ -59,6 +82,7 @@ export async function GET(request: NextRequest) {
     const [{ count }] = await db
       .select({ count: sql`COUNT(*)`.mapWith(Number) })
       .from(subscriptions)
+      .leftJoin(tenants, eq(subscriptions.tenantId, tenants.id))
       .where(whereClause);
 
     const meta = createPaginationMeta(count, page, limit);
@@ -70,27 +94,31 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/subscriptions
- * Create a new subscription
+ * Create a new subscription (with auth)
  */
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    if (!canPerformWriteOperation(user)) {
+      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+    }
+
     const body = await request.json();
     const validationError = validateRequiredFields(body, ["tenantId", "planId", "startDate", "endDate"]);
     if (validationError) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
 
-    const { tenantId, planId, startDate, endDate, isActive } = body;
+    const { tenantId, planId, startDate, endDate, isActive = true } = body;
 
-    // Verify tenant exists
-    const tenant = await db
-      .select()
-      .from(tenants)
-      .where(eq(tenants.id, tenantId))
-      .limit(1);
-
-    if (tenant.length === 0) {
-      return createErrorResponse("Tenant not found", 404, "TENANT_NOT_FOUND");
+    // Check if user can access this tenant
+    const hasTenantAccess = await checkTenantAccess(user, tenantId);
+    if (!hasTenantAccess) {
+      return createErrorResponse("Forbidden: Cannot access this tenant", 403, "FORBIDDEN");
     }
 
     // Verify plan exists
@@ -110,7 +138,7 @@ export async function POST(request: NextRequest) {
       planId,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
-      isActive: isActive !== undefined ? isActive : true,
+      isActive: Boolean(isActive),
     };
 
     await db.insert(subscriptions).values(newSubscription);
@@ -127,7 +155,7 @@ export async function POST(request: NextRequest) {
         tenantName: tenants.name,
         planName: subscriptionPlans.name,
         planPrice: subscriptionPlans.price,
-        planBillingCycle: subscriptionPlans.billingCycle,
+        billingCycle: subscriptionPlans.billingCycle,
       })
       .from(subscriptions)
       .leftJoin(tenants, eq(subscriptions.tenantId, tenants.id))

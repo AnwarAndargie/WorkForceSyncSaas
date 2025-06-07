@@ -10,13 +10,20 @@ import {
 } from "@/lib/api/response";
 import { generateId } from "@/lib/db/utils";
 import { eq, desc, like, and, sql } from "drizzle-orm";
+import { getSessionUser } from "@/lib/auth/session";
+import { canPerformWriteOperation } from "@/lib/auth/authorization";
 
 /**
  * GET /api/subscription-plans
- * List subscription plans with pagination and search
+ * List subscription plans with pagination and search (with auth)
  */
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 100);
@@ -25,11 +32,13 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     const conditions = [];
+    
     if (search) {
       conditions.push(like(subscriptionPlans.name, `%${search}%`));
     }
+
     if (billingCycle) {
-      conditions.push(eq(subscriptionPlans.billingCycle, billingCycle as "monthly" | "yearly"));
+      conditions.push(like(subscriptionPlans.billingCycle, billingCycle));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -56,10 +65,20 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/subscription-plans
- * Create a new subscription plan
+ * Create a new subscription plan (with auth - super_admin only)
  */
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    // Only super_admin can create subscription plans
+    if (user.role !== "super_admin") {
+      return createErrorResponse("Forbidden: Only super admins can create subscription plans", 403, "FORBIDDEN");
+    }
+
     const body = await request.json();
     const validationError = validateRequiredFields(body, ["name", "price", "billingCycle"]);
     if (validationError) {
@@ -68,30 +87,18 @@ export async function POST(request: NextRequest) {
 
     const { name, description, price, billingCycle } = body;
 
-    // Validate billingCycle
-    if (!["monthly", "yearly"].includes(billingCycle)) {
-      return createErrorResponse("Invalid billing cycle. Must be 'monthly' or 'yearly'", 400, "INVALID_BILLING_CYCLE");
-    }
-
     const newPlan = {
       id: generateId("plan"),
       name,
       description: description || null,
-      price: price.toString(), // Convert to string for decimal field
+      price: price.toString(),
       billingCycle,
       createdAt: new Date(),
     };
 
     await db.insert(subscriptionPlans).values(newPlan);
 
-    // Return the created plan
-    const createdPlan = await db
-      .select()
-      .from(subscriptionPlans)
-      .where(eq(subscriptionPlans.id, newPlan.id))
-      .limit(1);
-
-    return createSuccessResponse(createdPlan[0], 201);
+    return createSuccessResponse(newPlan, 201);
   } catch (error) {
     return handleDatabaseError(error);
   }

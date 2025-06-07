@@ -7,17 +7,30 @@ import {
   createErrorResponse,
   handleDatabaseError,
 } from "@/lib/api/response";
+import { getSessionUser } from "@/lib/auth/session";
+import { canPerformWriteOperation, authorizeUserFor } from "@/lib/auth/authorization";
 
 /**
  * GET /api/invoices/[id]
- * Get a specific invoice
+ * Get a specific invoice (with auth)
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
     const invoiceId = params.id;
+
+    // Check authorization
+    const authorized = await authorizeUserFor("invoice", invoiceId, user);
+    if (!authorized) {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    }
 
     const invoice = await db
       .select({
@@ -27,6 +40,7 @@ export async function GET(
         dueDate: invoices.dueDate,
         paid: invoices.paid,
         paidAt: invoices.paidAt,
+        contractStatus: contracts.status,
         clientName: clients.name,
         tenantName: tenants.name,
       })
@@ -49,33 +63,41 @@ export async function GET(
 
 /**
  * PATCH /api/invoices/[id]
- * Update an invoice
+ * Update an invoice (with auth)
  */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    if (!canPerformWriteOperation(user)) {
+      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+    }
+
     const invoiceId = params.id;
+
+    // Check authorization
+    const authorized = await authorizeUserFor("invoice", invoiceId, user);
+    if (!authorized) {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    }
+
     const body = await request.json();
 
-    const allowedFields = ["amount", "dueDate", "paid"];
+    const allowedFields = ["amount", "dueDate", "paid", "paidAt"];
     const updatePayload: Record<string, any> = {};
 
     for (const key of allowedFields) {
       if (key in body) {
-        if (key === "dueDate") {
-          updatePayload[key] = new Date(body[key]);
+        if (key === "dueDate" || key === "paidAt") {
+          updatePayload[key] = body[key] ? new Date(body[key]) : null;
         } else if (key === "amount") {
           updatePayload[key] = body[key].toString();
-        } else if (key === "paid") {
-          updatePayload[key] = body[key];
-          // If marking as paid, set paidAt timestamp
-          if (body[key] === true) {
-            updatePayload.paidAt = new Date();
-          } else if (body[key] === false) {
-            updatePayload.paidAt = null;
-          }
         } else {
           updatePayload[key] = body[key];
         }
@@ -114,14 +136,29 @@ export async function PATCH(
 
 /**
  * DELETE /api/invoices/[id]
- * Delete an invoice
+ * Delete an invoice (with auth)
  */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    if (!canPerformWriteOperation(user)) {
+      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+    }
+
     const invoiceId = params.id;
+
+    // Check authorization
+    const authorized = await authorizeUserFor("invoice", invoiceId, user);
+    if (!authorized) {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    }
 
     // Check if invoice exists
     const existingInvoice = await db
