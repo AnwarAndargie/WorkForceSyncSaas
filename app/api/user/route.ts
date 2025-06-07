@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
   try {
     // In a real application, you would get the user ID from the session/JWT token
     // For now, we'll use a query parameter or header
+
     const userId =
       request.headers.get("x-user-id") ||
       request.nextUrl.searchParams.get("userId");
