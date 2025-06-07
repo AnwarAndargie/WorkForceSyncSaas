@@ -10,13 +10,20 @@ import {
 } from "@/lib/api/response";
 import { generateId } from "@/lib/db/utils";
 import { eq, desc, like, and, sql } from "drizzle-orm";
+import { getSessionUser } from "@/lib/auth/session";
+import { canPerformWriteOperation, checkTenantAccess } from "@/lib/auth/authorization";
 
 /**
  * GET /api/tenant-members
- * List tenant members with pagination and search
+ * List tenant members with pagination and search (with auth)
  */
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 100);
@@ -25,12 +32,22 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     const conditions = [];
-    if (search) {
-      // Join with users table to search by user name
-      // This would require a more complex query
-    }
-    if (tenantId) {
-      conditions.push(eq(TenantMembers.tenantId, tenantId));
+    
+    // Apply role-based filtering
+    if (user.role === "super_admin") {
+      // Super admin can see all members, optionally filtered by tenantId
+      if (tenantId) {
+        const hasAccess = await checkTenantAccess(user, tenantId);
+        if (!hasAccess) {
+          return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+        }
+        conditions.push(eq(TenantMembers.tenantId, tenantId));
+      }
+    } else if (user.role === "tenant_admin" && user.tenantId) {
+      // Tenant admin can only see members in their tenant
+      conditions.push(eq(TenantMembers.tenantId, user.tenantId));
+    } else {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -66,10 +83,19 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/tenant-members
- * Add a new member to a tenant
+ * Add a new member to a tenant (with auth)
  */
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    if (!canPerformWriteOperation(user)) {
+      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+    }
+
     const body = await request.json();
     const validationError = validateRequiredFields(body, ["userId", "tenantId"]);
     if (validationError) {
@@ -78,14 +104,20 @@ export async function POST(request: NextRequest) {
 
     const { userId, tenantId } = body;
 
+    // Check if user can access this tenant
+    const hasAccess = await checkTenantAccess(user, tenantId);
+    if (!hasAccess) {
+      return createErrorResponse("Forbidden: Cannot access this tenant", 403, "FORBIDDEN");
+    }
+
     // Verify user exists
-    const user = await db
+    const userToAdd = await db
       .select()
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
 
-    if (user.length === 0) {
+    if (userToAdd.length === 0) {
       return createErrorResponse("User not found", 404, "USER_NOT_FOUND");
     }
 

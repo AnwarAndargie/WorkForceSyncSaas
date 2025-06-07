@@ -2,6 +2,10 @@ import { compare, hash } from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NewUser } from '@/lib/db/schema';
+import { NextRequest } from "next/server";
+import { db } from "@/lib/db/drizzle";
+import { users } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 const key = new TextEncoder().encode(process.env.AUTH_SECRET);
 const SALT_ROUNDS = 10;
@@ -56,4 +60,128 @@ export async function setSession(user: NewUser) {
     secure: true,
     sameSite: 'lax',
   });
+}
+
+export interface SessionUser {
+  id: string;
+  role: "super_admin" | "tenant_admin" | "client_admin" | "employee";
+  tenantId?: string;
+  clientId?: string;
+  name?: string;
+  email?: string;
+}
+
+/**
+ * Extract user ID from session cookie or authorization header
+ */
+export async function getSessionUserId(request: NextRequest): Promise<string | null> {
+  try {
+    // Try to get from Authorization header first (for API calls)
+    const authHeader = request.headers.get("authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.substring(7);
+      // You would validate the JWT token here and extract the user ID
+      // For now, we'll assume the token is the user ID (implement proper JWT validation)
+      return token;
+    }
+
+    // Try to get from cookies (for browser requests)
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get("session");
+    
+    if (sessionCookie) {
+      // Parse session cookie (you might want to decrypt/validate this)
+      const sessionData = JSON.parse(sessionCookie.value);
+      return sessionData.userId || null;
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Error getting session user ID:", error);
+    return null;
+  }
+}
+
+/**
+ * Get the full user object from session with role and tenant/client info
+ */
+export async function getSessionUser(request: NextRequest): Promise<SessionUser | null> {
+  try {
+    const userId = await getSessionUserId(request);
+    if (!userId) return null;
+
+    // Fetch user from database with their role and associations
+    const user = await db
+      .select({
+        id: users.id,
+        role: users.role,
+        tenantId: users.tenantId,
+        name: users.name,
+        email: users.email,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (user.length === 0) return null;
+
+    const userData = user[0];
+    
+    // Handle null role
+    if (!userData.role) return null;
+    
+    // For client_admin role, we need to find their clientId
+    // This would be determined by your business logic - maybe they're assigned to a specific client
+    let clientId: string | undefined;
+    
+    if (userData.role === "client_admin") {
+      // You might have a user-client relationship table or derive this differently
+      // For now, we'll set it as undefined and you can customize this logic
+      clientId = undefined; // Implement your client assignment logic here
+    }
+
+    return {
+      id: userData.id,
+      role: userData.role,
+      tenantId: userData.tenantId || undefined,
+      clientId,
+      name: userData.name || undefined,
+      email: userData.email || undefined,
+    };
+  } catch (error) {
+    console.error("Error getting session user:", error);
+    return null;
+  }
+}
+
+/**
+ * Validate if user is authenticated
+ */
+export async function requireAuth(request: NextRequest): Promise<SessionUser | null> {
+  const user = await getSessionUser(request);
+  return user;
+}
+
+/**
+ * Set session cookie (for login)
+ */
+export async function setSessionCookie(userId: string): Promise<void> {
+  const cookieStore = await cookies();
+  const sessionData = { userId, timestamp: Date.now().toString() };
+  
+  cookieStore.set("session", JSON.stringify(sessionData), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+    path: "/",
+  });
+}
+
+/**
+ * Clear session cookie (for logout)
+ */
+export async function clearSessionCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete("session");
 }

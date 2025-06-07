@@ -7,17 +7,30 @@ import {
   createErrorResponse,
   handleDatabaseError,
 } from "@/lib/api/response";
+import { getSessionUser } from "@/lib/auth/session";
+import { canPerformWriteOperation, authorizeUserFor } from "@/lib/auth/authorization";
 
 /**
  * GET /api/clients/[id]
- * Get a specific client
+ * Get a specific client (with auth)
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
     const clientId = params.id;
+
+    // Check authorization
+    const authorized = await authorizeUserFor("client", clientId, user);
+    if (!authorized) {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    }
 
     const client = await db
       .select({
@@ -48,14 +61,30 @@ export async function GET(
 
 /**
  * PATCH /api/clients/[id]
- * Update a client
+ * Update a client (with auth)
  */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    if (!canPerformWriteOperation(user)) {
+      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+    }
+
     const clientId = params.id;
+
+    // Check authorization
+    const authorized = await authorizeUserFor("client", clientId, user);
+    if (!authorized) {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    }
+
     const body = await request.json();
 
     const allowedFields = ["name", "phone", "address", "branchId"];
@@ -112,14 +141,29 @@ export async function PATCH(
 
 /**
  * DELETE /api/clients/[id]
- * Delete a client
+ * Delete a client (with auth)
  */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    if (!canPerformWriteOperation(user)) {
+      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+    }
+
     const clientId = params.id;
+
+    // Check authorization
+    const authorized = await authorizeUserFor("client", clientId, user);
+    if (!authorized) {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    }
 
     // Check if client exists
     const existingClient = await db

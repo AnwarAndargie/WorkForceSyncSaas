@@ -10,13 +10,20 @@ import {
 } from "@/lib/api/response";
 import { generateId } from "@/lib/db/utils";
 import { eq, desc, like, and, sql } from "drizzle-orm";
+import { getSessionUser } from "@/lib/auth/session";
+import { canPerformWriteOperation, checkClientAccess } from "@/lib/auth/authorization";
 
 /**
  * GET /api/assignments
- * List assignments with pagination and search
+ * List assignments with pagination and search (with auth)
  */
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 100);
@@ -27,17 +34,47 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     const conditions = [];
-    if (search) {
-      // We can search by employee or client name through joins
-    }
-    if (status) {
-      conditions.push(eq(assignments.status, status as "active" | "inactive" | "completed"));
-    }
-    if (employeeId) {
-      conditions.push(eq(assignments.employeeId, parseInt(employeeId)));
-    }
-    if (clientId) {
-      conditions.push(eq(assignments.clientId, parseInt(clientId)));
+    
+    // Apply role-based filtering
+    if (user.role === "super_admin") {
+      // Super admin can see all assignments
+      if (status) {
+        conditions.push(eq(assignments.status, status as "active" | "inactive" | "completed"));
+      }
+      if (employeeId) {
+        conditions.push(eq(assignments.employeeId, employeeId));
+      }
+      if (clientId) {
+        conditions.push(eq(assignments.clientId, clientId));
+      }
+    } else if (user.role === "tenant_admin" && user.tenantId) {
+      // Tenant admin can see assignments for their tenant's clients
+      // We need to join with clients to filter by tenant
+      if (status) {
+        conditions.push(eq(assignments.status, status as "active" | "inactive" | "completed"));
+      }
+      if (employeeId) {
+        conditions.push(eq(assignments.employeeId, employeeId));
+      }
+      if (clientId) {
+        // Verify the client belongs to their tenant first
+        const authorized = await checkClientAccess(user, clientId);
+        if (!authorized) {
+          return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+        }
+        conditions.push(eq(assignments.clientId, clientId));
+      }
+    } else if (user.role === "client_admin" && user.clientId) {
+      // Client admin can only see assignments for their client
+      conditions.push(eq(assignments.clientId, user.clientId));
+      if (status) {
+        conditions.push(eq(assignments.status, status as "active" | "inactive" | "completed"));
+      }
+      if (employeeId) {
+        conditions.push(eq(assignments.employeeId, employeeId));
+      }
+    } else {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -77,10 +114,19 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/assignments
- * Create a new assignment
+ * Create a new assignment (with auth)
  */
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSessionUser(request);
+    if (!user) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
+    }
+
+    if (!canPerformWriteOperation(user)) {
+      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+    }
+
     const body = await request.json();
     const validationError = validateRequiredFields(body, ["employeeId", "clientId", "startDate"]);
     if (validationError) {
@@ -88,6 +134,12 @@ export async function POST(request: NextRequest) {
     }
 
     const { employeeId, clientId, startDate, endDate, status } = body;
+
+    // Check if user can access this client
+    const hasAccess = await checkClientAccess(user, clientId);
+    if (!hasAccess) {
+      return createErrorResponse("Forbidden: Cannot access this client", 403, "FORBIDDEN");
+    }
 
     // Verify employee exists
     const employee = await db
