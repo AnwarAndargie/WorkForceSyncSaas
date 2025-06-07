@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { useAuth } from '../(dashboard)/dashboard/assignments/page';
+import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function SignUp() {
   const { signUp } = useAuth();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   const handleSignUp = () => {
     signUp(username, password);
@@ -27,9 +27,12 @@ export default function SignUp() {
         onChange={(e) => setPassword(e.target.value)}
         className="mb-2 p-2 border"
       />
-      <button onClick={handleSignUp} className="bg-blue-500 text-white px-4 py-2 rounded">
+      <button
+        onClick={handleSignUp}
+        className="bg-blue-500 text-white px-4 py-2 rounded"
+      >
         Sign Up
       </button>
     </div>
   );
-} 
+}

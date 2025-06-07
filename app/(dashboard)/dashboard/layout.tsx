@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { AppSidebar } from "@/components/common/app-sidebar";
-import { Menu } from "lucide-react";
+import React from "react";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 
 export default function DashboardLayout({
   children,
@@ -12,21 +10,15 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-muted/40">
-      <header className="sticky top-0 z-30 flex h-14 items-center border-b bg-background px-4 lg:hidden">
-        <div className="font-semibold">WorkforceSync</div>
-      </header>
-
-      <div className="flex flex-row w-[100vw]">
-        <div className="w-7">
-          <AppSidebar />
-        </div>
-
-        {/* Main content */}
-        <div className=" min-w-2xl overflow-y-auto p-4 ml-68 w-[80%]">
-          {children}
+    <ProtectedRoute>
+      <div className="flex h-screen bg-gray-50">
+        <DashboardSidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <main className="flex-1 overflow-y-auto">
+            <div className="px-8 py-6">{children}</div>
+          </main>
         </div>
       </div>
-    </div>
+    </ProtectedRoute>
   );
 }

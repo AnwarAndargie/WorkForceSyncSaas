@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { useAuth } from '../(dashboard)/dashboard/assignments/page';
+"use client";
+import { useState } from "react";
+import { useAuth } from "../(dashboard)/dashboard/assignments/page";
 
 export default function SignIn() {
   const { signIn } = useAuth();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   const handleSignIn = () => {
     signIn(username, password);
@@ -27,9 +28,12 @@ export default function SignIn() {
         onChange={(e) => setPassword(e.target.value)}
         className="mb-2 p-2 border"
       />
-      <button onClick={handleSignIn} className="bg-blue-500 text-white px-4 py-2 rounded">
+      <button
+        onClick={handleSignIn}
+        className="bg-blue-500 text-white px-4 py-2 rounded"
+      >
         Sign In
       </button>
     </div>
   );
-} 
+}

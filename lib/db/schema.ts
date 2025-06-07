@@ -8,137 +8,215 @@ import {
   date,
   decimal,
   mysqlEnum,
-  primaryKey,
   index,
-  timestamp,
 } from "drizzle-orm/mysql-core";
-import { generateId } from "./utils";
 
-export const tenants = mysqlTable("tenants", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  clientId: varchar("client_id").references((): any => clients.id),
-  adminId: varchar("adminId").references((): any => users.id),
-  slug: varchar("name", { length: 255 }),
-  name: varchar("name", { length: 255 }),
-  email: varchar("email", { length: 255 }).unique(),
-  phone: varchar("phone", { length: 20 }),
-  address: text("address"),
-  logo: varchar("name", { length: 255 }),
-  ownerId: serial("ownerId").references((): any => users.id),
-  createdAt: datetime("created_at"),
-});
-
-export const users = mysqlTable("users", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  tenantId: varchar("tenant_id").references(() => tenants.id),
-  name: varchar("name", { length: 255 }),
-  email: varchar("email", { length: 255 }).unique(),
-  role: mysqlEnum("role", [
-    "super_admin",
-    "client_admin",
-    "tenant_admin",
-    "employee",
-  ]),
-  passwordHash: text("password_hash"),
-  isActive: boolean("is_active").default(true),
-  createdAt: datetime("created_at"),
-});
-export const TenantMembers = mysqlTable(
-  "tenant_members",
+// Users table (central user store for super admin, tenant admins, tenant members, and client contacts)
+export const users = mysqlTable(
+  "users",
   {
-    id: varchar("id", { length: 36 }).primaryKey(), // generated with generateId("member")
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => users.id),
-    tenantId: varchar("tenant_id", { length: 36 })
-      .notNull()
-      .references(() => tenants.id),
+    id: varchar("id", { length: 128 }).primaryKey(),
+    name: varchar("name", { length: 255 }),
+    email: varchar("email", { length: 255 }).unique(),
+    role: mysqlEnum("role", [
+      "super_admin",
+      "client_admin",
+      "tenant_admin",
+      "employee",
+    ]),
+    passwordHash: text("password_hash"),
+    isActive: boolean("is_active").default(true),
+    createdAt: datetime("created_at"),
   },
   (table) => ({
-    tenantUserIndex: index("org_user_idx").on(table.tenantId, table.userId),
-    pk: primaryKey({ columns: [table.id] }),
+    emailIndex: index("email_idx").on(table.email),
   })
 );
 
+// Clients table (removed tenantId to break circular reference)
 export const clients = mysqlTable("clients", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  tenantId: varchar("tenant_id").references(() => tenants.id),
-  adminId: varchar("id", { length: 128 }).references(() => users.id),
+  id: varchar("id", { length: 128 }).primaryKey(),
+  adminId: varchar("admin_id", { length: 128 }).references(() => users.id, {
+    onDelete: "set null",
+  }),
   name: varchar("name", { length: 255 }),
   phone: varchar("phone", { length: 20 }),
   address: text("address"),
 });
 
+// Tenants table
+export const tenants = mysqlTable(
+  "tenants",
+  {
+    id: varchar("id", { length: 128 }).primaryKey(),
+    clientId: varchar("client_id", { length: 128 })
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    adminId: varchar("admin_id", { length: 128 })
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    slug: varchar("slug", { length: 255 }),
+    name: varchar("name", { length: 255 }),
+    email: varchar("email", { length: 255 }).unique(),
+    phone: varchar("phone", { length: 20 }),
+    address: text("address"),
+    logo: varchar("logo", { length: 255 }),
+    ownerId: serial("owner_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: datetime("created_at"),
+  },
+  (table) => ({
+    emailIndex: index("email_idx").on(table.email),
+  })
+);
+
+// TenantMembers table (associates users with tenants)
+export const TenantMembers = mysqlTable(
+  "tenant_members",
+  {
+    id: varchar("id", { length: 128 }).primaryKey(),
+    userId: varchar("user_id", { length: 128 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tenantId: varchar("tenant_id", { length: 128 })
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    tenantUserIndex: index("org_user_idx").on(table.tenantId, table.userId),
+  })
+);
+
+// Branches table
 export const branches = mysqlTable("branches", {
   id: varchar("id", { length: 128 }).primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   address: text("address"),
-  supervisorId: varchar("id", { length: 128 }).references(() => users.id),
-  tenantId: varchar("id", { length: 128 })
+  supervisorId: varchar("supervisor_id", { length: 128 }).references(
+    () => users.id,
+    {
+      onDelete: "set null",
+    }
+  ),
+  tenantId: varchar("tenant_id", { length: 128 })
     .notNull()
-    .references(() => tenants.id),
-  clientId: varchar("id", { length: 128 })
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  clientId: varchar("client_id", { length: 128 })
     .notNull()
-    .references(() => clients.id),
-  createdAt: timestamp("created_at").defaultNow(),
+    .references(() => clients.id, { onDelete: "cascade" }),
+  createdAt: datetime("created_at"),
 });
 
+// EmployeeBranches table
 export const employeeBranches = mysqlTable("employee_branches", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  employeeId: varchar("employee_id").references(() => users.id),
-  branchId: varchar("branch_id").references(() => branches.id),
+  id: varchar("id", { length: 128 }).primaryKey(),
+  employeeId: varchar("employee_id", { length: 128 }).references(
+    () => users.id,
+    {
+      onDelete: "cascade",
+    }
+  ),
+  branchId: varchar("branch_id", { length: 128 }).references(
+    () => branches.id,
+    {
+      onDelete: "cascade",
+    }
+  ),
   roleAtBranch: varchar("role_at_branch", { length: 100 }),
   assignedAt: datetime("assigned_at"),
 });
 
+// Assignments table
 export const assignments = mysqlTable("assignments", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  employeeId: varchar("employee_id").references(() => users.id),
-  clientId: varchar("customer_id").references(() => clients.id),
+  id: varchar("id", { length: 128 }).primaryKey(),
+  employeeId: varchar("employee_id", { length: 128 }).references(
+    () => users.id,
+    {
+      onDelete: "cascade",
+    }
+  ),
+  clientId: varchar("client_id", { length: 128 }).references(() => clients.id, {
+    onDelete: "cascade",
+  }),
   startDate: date("start_date"),
   endDate: date("end_date"),
   status: mysqlEnum("status", ["active", "inactive", "completed"]),
 });
 
+// Shifts table
 export const shifts = mysqlTable("shifts", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  assignmentId: varchar("assignment_id").references(() => assignments.id),
-  branchId: varchar("branch_id").references(() => branches.id),
-  employeeId: varchar("employee_id").references(() => users.id),
+  id: varchar("id", { length: 128 }).primaryKey(),
+  assignmentId: varchar("assignment_id", { length: 128 }).references(
+    () => assignments.id,
+    {
+      onDelete: "cascade",
+    }
+  ),
+  branchId: varchar("branch_id", { length: 128 }).references(
+    () => branches.id,
+    {
+      onDelete: "cascade",
+    }
+  ),
+  employeeId: varchar("employee_id", { length: 128 }).references(
+    () => users.id,
+    {
+      onDelete: "cascade",
+    }
+  ),
   startTime: datetime("start_time"),
   endTime: datetime("end_time"),
   shiftType: varchar("shift_type", { length: 100 }),
   status: mysqlEnum("status", ["scheduled", "completed", "cancelled"]),
 });
 
+// Reports table
 export const reports = mysqlTable("reports", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  assignmentId: varchar("assignment_id").references(() => assignments.id),
+  id: varchar("id", { length: 128 }).primaryKey(),
+  assignmentId: varchar("assignment_id", { length: 128 }).references(
+    () => assignments.id,
+    {
+      onDelete: "cascade",
+    }
+  ),
   reportText: text("report_text"),
   createdAt: datetime("created_at"),
 });
 
+// Contracts table
 export const contracts = mysqlTable("contracts", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  tenantId: varchar("tenant_id").references(() => tenants.id),
-  clientId: varchar("customer_id").references(() => clients.id),
+  id: varchar("id", { length: 128 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 128 }).references(() => tenants.id, {
+    onDelete: "cascade",
+  }),
+  clientId: varchar("client_id", { length: 128 }).references(() => clients.id, {
+    onDelete: "cascade",
+  }),
   startDate: date("start_date"),
   endDate: date("end_date"),
   terms: text("terms"),
   status: mysqlEnum("status", ["active", "expired", "terminated"]),
 });
 
+// Invoices table
 export const invoices = mysqlTable("invoices", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  contractId: varchar("contract_id").references(() => contracts.id),
+  id: varchar("id", { length: 128 }).primaryKey(),
+  contractId: varchar("contract_id", { length: 128 }).references(
+    () => contracts.id,
+    {
+      onDelete: "cascade",
+    }
+  ),
   amount: decimal("amount", { precision: 10, scale: 2 }),
   dueDate: date("due_date"),
-  paid: boolean("paid"),
+  paid: boolean("paid").default(false),
   paidAt: datetime("paid_at"),
 });
 
+// SubscriptionPlans table
 export const subscriptionPlans = mysqlTable("subscription_plans", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+  id: varchar("id", { length: 128 }).primaryKey(),
   name: varchar("name", { length: 255 }),
   description: text("description"),
   price: decimal("price", { precision: 10, scale: 2 }),
@@ -146,21 +224,32 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   createdAt: datetime("created_at"),
 });
 
+// Subscriptions table
 export const subscriptions = mysqlTable("subscriptions", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  tenantId: varchar("tenant_id").references(() => tenants.id),
-  planId: varchar("plan_id").references(() => subscriptionPlans.id),
+  id: varchar("id", { length: 128 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 128 }).references(() => tenants.id, {
+    onDelete: "cascade",
+  }),
+  planId: varchar("plan_id", { length: 128 }).references(
+    () => subscriptionPlans.id,
+    {
+      onDelete: "cascade",
+    }
+  ),
   startDate: date("start_date"),
   endDate: date("end_date"),
-  isActive: boolean("is_active"),
+  isActive: boolean("is_active").default(true),
 });
 
+// Notifications table
 export const notifications = mysqlTable("notifications", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  userId: varchar("user_id").references(() => users.id),
+  id: varchar("id", { length: 128 }).primaryKey(),
+  userId: varchar("user_id", { length: 128 }).references(() => users.id, {
+    onDelete: "cascade",
+  }),
   title: varchar("title", { length: 255 }),
   message: text("message"),
-  isRead: boolean("is_read"),
+  isRead: boolean("is_read").default(false),
   createdAt: datetime("created_at"),
 });
 
@@ -170,13 +259,14 @@ export type NewUser = typeof users.$inferInsert;
 
 export type Tenant = typeof tenants.$inferSelect;
 export type NewTenant = typeof tenants.$inferInsert;
-export type TenantMembers = typeof tenants.$inferInsert;
+export type TenantMembersSelect = typeof TenantMembers.$inferSelect;
+export type NewTenantMembers = typeof TenantMembers.$inferInsert;
 
 export type Plan = typeof subscriptionPlans.$inferSelect;
 export type NewPlan = typeof subscriptionPlans.$inferInsert;
 
 export type Notification = typeof notifications.$inferSelect;
-export type NewNotifiation = typeof notifications.$inferInsert;
+export type NewNotification = typeof notifications.$inferInsert;
 
 export type Invoice = typeof invoices.$inferSelect;
 export type NewInvoice = typeof invoices.$inferInsert;
