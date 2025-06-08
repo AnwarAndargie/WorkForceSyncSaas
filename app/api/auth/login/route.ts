@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { users } from "@/lib/db/schema";
+import { users, TenantMembers } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import {
   createSuccessResponse,
@@ -25,26 +25,27 @@ export async function POST(request: NextRequest) {
 
     const { email, password } = body;
 
-    // Find user by email
-    const user = await db
+    // Find user by email with tenant information
+    const userQuery = await db
       .select({
         id: users.id,
         email: users.email,
         passwordHash: users.passwordHash,
         role: users.role,
-        tenantId: users.tenantId,
         name: users.name,
         isActive: users.isActive,
+        tenantId: TenantMembers.tenantId,
       })
       .from(users)
+      .leftJoin(TenantMembers, eq(users.id, TenantMembers.userId))
       .where(eq(users.email, email))
       .limit(1);
 
-    if (user.length === 0) {
+    if (userQuery.length === 0) {
       return createErrorResponse("Invalid credentials", 401, "INVALID_CREDENTIALS");
     }
 
-    const userData = user[0];
+    const userData = userQuery[0];
 
     // Check if user is active
     if (!userData.isActive) {

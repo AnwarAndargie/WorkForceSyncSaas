@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useState, useEffect } from "react";
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -35,61 +36,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trash, Pen, EyeIcon } from "lucide-react";
+import { Trash, Pen, EyeIcon, Loader2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-const data: Payment[] = [
-  {
-    name: "Addis Ababa University",
-    id: "m5gr84i9",
-    amount: 316,
-    status: "in-process",
-    branches: 17,
-    email: "ken99@example.com",
-  },
-  {
-    name: "Ethiopian Airlines",
-    id: "3u1reuv4",
-    amount: 242,
-    status: "serving",
-    branches: 2,
-    email: "Abe45@example.com",
-  },
-  {
-    id: "derv1ws0",
-    name: "Unity University",
-    amount: 837,
-    status: "serving",
-    branches: 23,
-    email: "Monserrat44@example.com",
-  },
-  {
-    id: "5kma53ae",
-    name: "INSA",
-    amount: 874,
-    status: "served",
-    branches: 7,
-    email: "Silas22@example.com",
-  },
-  {
-    id: "bhqecj4p",
-    name: "Ethiopian Electric Power",
-    amount: 721,
-    status: "failed",
-    branches: 3,
-    email: "carmella@example.com",
-  },
-];
-
-export type Payment = {
+export type Client = {
   id: string;
   name: string;
-  amount: number;
-  status: "serving" | "served" | "in-process" | "failed";
-  branches: number;
-  email: string;
+  phone?: string;
+  address?: string;
+  adminId?: string;
+  tenantName?: string;
 };
 
-export const columns: ColumnDef<Payment>[] = [
+export const columns: ColumnDef<Client>[] = [
   {
     id: "select",
     header: ({ table }) => (
@@ -114,80 +73,51 @@ export const columns: ColumnDef<Payment>[] = [
   },
   {
     accessorKey: "name",
-    header: "Name",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Name
+          <ArrowUpDown />
+        </Button>
+      );
+    },
     cell: ({ row }) => <div className="capitalize">{row.getValue("name")}</div>,
   },
   {
-    accessorKey: "email",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Email
-          <ArrowUpDown />
-        </Button>
-      );
-    },
-    cell: ({ row }) => <div className="lowercase">{row.getValue("email")}</div>,
+    accessorKey: "phone",
+    header: "Phone",
+    cell: ({ row }) => <div>{row.getValue("phone") || "N/A"}</div>,
   },
   {
-    accessorKey: "status",
+    accessorKey: "address",
+    header: "Address",
+    cell: ({ row }) => <div>{row.getValue("address") || "N/A"}</div>,
+  },
+  {
+    accessorKey: "tenantName",
     header: ({ column }) => {
       return (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Status
+          Tenant
           <ArrowUpDown />
         </Button>
       );
     },
     cell: ({ row }) => (
-      <div className="lowercase">{row.getValue("status")}</div>
+      <div className="lowercase">{row.getValue("tenantName") || "N/A"}</div>
     ),
-  },
-  {
-    accessorKey: "branches",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Branches
-          <ArrowUpDown />
-        </Button>
-      );
-    },
-    cell: ({ row }) => (
-      <div className="lowercase flex items-center">
-        {row.getValue("branches")}
-      </div>
-    ),
-  },
-  {
-    accessorKey: "amount",
-    header: () => <div className="text-right">Amount Paid</div>,
-    cell: ({ row }) => {
-      const amount = parseFloat(row.getValue("amount"));
-
-      // Format the amount as a dollar amount
-      const formatted = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-      }).format(amount);
-
-      return <div className="text-right font-medium">{formatted}</div>;
-    },
   },
   {
     id: "actions",
     enableHiding: false,
     cell: ({ row }) => {
-      const payment = row.original;
+      const client = row.original;
 
       return (
         <DropdownMenu>
@@ -199,23 +129,23 @@ export const columns: ColumnDef<Payment>[] = [
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            {/* <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(payment.id)}
+            <DropdownMenuItem
+              onClick={() => navigator.clipboard.writeText(client.id)}
             >
-              Copy payment ID
-            </DropdownMenuItem> */}
-            {/* <DropdownMenuSeparator /> */}
+              Copy client ID
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem>
-              <EyeIcon /> View Client
+              <EyeIcon className="mr-2 h-4 w-4" />
+              View details
             </DropdownMenuItem>
             <DropdownMenuItem>
-              <Pen /> Edit Client
+              <Pen className="mr-2 h-4 w-4" />
+              Edit client
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Trash /> Edit Client
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <EyeIcon /> View Branches
+            <DropdownMenuItem className="text-red-600">
+              <Trash className="mr-2 h-4 w-4" />
+              Delete client
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -226,12 +156,37 @@ export const columns: ColumnDef<Payment>[] = [
 
 export function ClientPage() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  );
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
+  const [data, setData] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch clients data
+  useEffect(() => {
+    const fetchClients = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/clients', {
+          credentials: 'include',
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch clients');
+        }
+        
+        const clientsData = await response.json();
+        setData(clientsData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load clients');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchClients();
+  }, []);
 
   const table = useReactTable({
     data,
@@ -252,25 +207,31 @@ export function ClientPage() {
     },
   });
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading clients...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
     <div className="w-full">
-      <div className="mb-4">
-        <div className="flex items-center justify-between py-4">
-          <h1 className="text-2xl font-bold">Manage Your Clients</h1>
-          <Button variant="outline" className="ml-auto">
-            Add Client
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          You can manage your clients here.
-        </p>
-      </div>
       <div className="flex items-center py-4">
         <Input
-          placeholder="Filter emails..."
-          value={(table.getColumn("email")?.getFilterValue() as string) ?? ""}
+          placeholder="Filter clients..."
+          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("email")?.setFilterValue(event.target.value)
+            table.getColumn("name")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
@@ -301,7 +262,7 @@ export function ClientPage() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="rounded-md border w-[100%] overflow-hidden">
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -344,7 +305,7 @@ export function ClientPage() {
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  No results.
+                  No clients found.
                 </TableCell>
               </TableRow>
             )}

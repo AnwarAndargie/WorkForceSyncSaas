@@ -116,6 +116,47 @@ export const useAuth = () => {
     }
   };
 
+  const register = async (name: string, email: string, password: string, role: 'super_admin' | 'tenant_admin' | 'client_admin' | 'employee') => {
+    try {
+      setAuthState(prev => ({ ...prev, loading: true, error: null }));
+      
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ name, email, password, role }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setAuthState({
+          user: data.user,
+          loading: false,
+          error: null,
+        });
+        return { success: true };
+      } else {
+        setAuthState({
+          user: null,
+          loading: false,
+          error: data.message || 'Registration failed',
+        });
+        return { success: false, error: data.message };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Registration error';
+      setAuthState({
+        user: null,
+        loading: false,
+        error: errorMessage,
+      });
+      return { success: false, error: errorMessage };
+    }
+  };
+
   useEffect(() => {
     fetchUser();
   }, []);
@@ -123,6 +164,7 @@ export const useAuth = () => {
   return {
     ...authState,
     login,
+    register,
     logout,
     refetch: fetchUser,
   };
