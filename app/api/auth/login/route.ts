@@ -52,13 +52,13 @@ export async function POST(request: NextRequest) {
     const userData = userQuery[0];
 
     // Check if user is active
-    if (!userData.isActive) {
-      return createErrorResponse(
-        "Account is deactivated",
-        401,
-        "ACCOUNT_DEACTIVATED"
-      );
-    }
+    // if (!userData.isActive) {
+    //   return createErrorResponse(
+    //     "Account is deactivated",
+    //     401,
+    //     "ACCOUNT_DEACTIVATED"
+    //   );
+    // }
 
     // Verify password
     if (!userData.passwordHash) {

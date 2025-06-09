@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
 
 import useSWR from "swr";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -32,9 +33,9 @@ function UserMenu() {
   return (
     <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
       <DropdownMenuTrigger>
-        <Avatar className="cursor-pointer size-10 bg-white-500">
+        <Avatar className="cursor-pointer size-10 bg-orange-400">
           <AvatarImage alt={""} />
-          <AvatarFallback className="bg-white-500 text-secondary">
+          <AvatarFallback className="bg-orange-400 text-secondary">
             {"Anwar"
               .split(" ")
               .map((n) => n[0])
@@ -86,9 +87,13 @@ function Header() {
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <section className="flex flex-col min-h-screen">
+    <section className="">
       <Header />
-      {children}
+      <SidebarProvider>
+        {" "}
+        <SidebarTrigger />
+        {children}
+      </SidebarProvider>
     </section>
   );
 }

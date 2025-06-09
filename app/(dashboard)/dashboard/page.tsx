@@ -1,12 +1,18 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { 
-  BarChart3, 
-  Users, 
-  DollarSign, 
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  BarChart3,
+  Users,
+  DollarSign,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -19,7 +25,14 @@ interface StatCardProps {
   percentage: string;
 }
 
-function StatCard({ title, value, description, icon, trend, percentage }: StatCardProps) {
+function StatCard({
+  title,
+  value,
+  description,
+  icon,
+  trend,
+  percentage,
+}: StatCardProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -37,7 +50,15 @@ function StatCard({ title, value, description, icon, trend, percentage }: StatCa
           ) : trend === "down" ? (
             <ArrowDownRight className="mr-1 h-4 w-4 text-red-600" />
           ) : null}
-          <span className={trend === "up" ? "text-green-600" : trend === "down" ? "text-red-600" : ""}>
+          <span
+            className={
+              trend === "up"
+                ? "text-green-600"
+                : trend === "down"
+                  ? "text-red-600"
+                  : ""
+            }
+          >
             {percentage}
           </span>
         </div>
@@ -55,7 +76,7 @@ export default function DashboardPage() {
           Here's an overview of your business metrics
         </p>
       </div>
-      
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Revenue"
@@ -97,7 +118,7 @@ export default function DashboardPage() {
             <CardTitle>Revenue Over Time</CardTitle>
           </CardHeader>
           <CardContent className="h-80">
-            <div className="h-full w-full rounded-md border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center">
+            <div className="h-full w-full rounded-md border border-dashed border-gray-300 flex items-center justify-center">
               <p className="text-sm text-gray-500">Revenue Chart Placeholder</p>
             </div>
           </CardContent>
@@ -108,16 +129,27 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {["John Doe", "Jane Smith", "Robert Johnson", "Emily Davis", "Michael Wilson"].map((name, i) => (
+              {[
+                "John Doe",
+                "Jane Smith",
+                "Robert Johnson",
+                "Emily Davis",
+                "Michael Wilson",
+              ].map((name, i) => (
                 <div key={i} className="flex items-center space-x-3">
                   <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
                     <span className="text-sm font-medium text-gray-600">
-                      {name.split(" ").map(n => n[0]).join("")}
+                      {name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")}
                     </span>
                   </div>
                   <div>
                     <p className="text-sm font-medium">{name}</p>
-                    <p className="text-xs text-gray-500">Joined {i + 1} day{i !== 0 ? "s" : ""} ago</p>
+                    <p className="text-xs text-gray-500">
+                      Joined {i + 1} day{i !== 0 ? "s" : ""} ago
+                    </p>
                   </div>
                 </div>
               ))}
