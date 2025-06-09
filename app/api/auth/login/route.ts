@@ -9,7 +9,7 @@ import {
   validateRequiredFields,
 } from "@/lib/api/response";
 import { verifyPassword } from "@/lib/db/utils";
-import { setSessionCookie } from "@/lib/auth/session";
+import { setSession } from "@/lib/auth/session";
 
 /**
  * POST /api/auth/login
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create session
-    await setSessionCookie(userData.id);
+    await setSession(userData);
 
     // Return user data (without password)
     const safeUserData = {

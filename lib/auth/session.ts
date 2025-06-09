@@ -92,8 +92,8 @@ export async function getSessionUserId(
 
     if (sessionCookie) {
       // Parse session cookie (you might want to decrypt/validate this)
-      const sessionData = JSON.parse(sessionCookie.value);
-      return sessionData.userId || null;
+      const sessionData = await verifyToken(sessionCookie.value);
+      return sessionData.user.id || null;
     }
 
     return null;
@@ -163,22 +163,6 @@ export async function requireAuth(
 ): Promise<SessionUser | null> {
   const user = await getSessionUser(request);
   return user;
-}
-
-/**
- * Set session cookie (for login)
- */
-export async function setSessionCookie(userId: string): Promise<void> {
-  const cookieStore = await cookies();
-  const sessionData = { userId, timestamp: Date.now().toString() };
-
-  cookieStore.set("session", JSON.stringify(sessionData), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
-    path: "/",
-  });
 }
 
 /**
