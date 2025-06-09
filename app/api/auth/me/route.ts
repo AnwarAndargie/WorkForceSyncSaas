@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
           email: user.email,
           name: user.name,
           role: user.role,
-          tenantId: user.tenantId,
           clientId: user.clientId,
         },
       },
@@ -33,4 +32,4 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return handleDatabaseError(error);
   }
-} 
+}

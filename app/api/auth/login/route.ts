@@ -42,24 +42,43 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (userQuery.length === 0) {
-      return createErrorResponse("Invalid credentials", 401, "INVALID_CREDENTIALS");
+      return createErrorResponse(
+        "Invalid credentials",
+        401,
+        "INVALID_CREDENTIALS"
+      );
     }
 
     const userData = userQuery[0];
 
     // Check if user is active
     if (!userData.isActive) {
-      return createErrorResponse("Account is deactivated", 401, "ACCOUNT_DEACTIVATED");
+      return createErrorResponse(
+        "Account is deactivated",
+        401,
+        "ACCOUNT_DEACTIVATED"
+      );
     }
 
     // Verify password
     if (!userData.passwordHash) {
-      return createErrorResponse("Invalid credentials", 401, "INVALID_CREDENTIALS");
+      return createErrorResponse(
+        "Invalid credentials",
+        401,
+        "INVALID_CREDENTIALS"
+      );
     }
 
-    const isValidPassword = await verifyPassword(password, userData.passwordHash);
+    const isValidPassword = await verifyPassword(
+      password,
+      userData.passwordHash
+    );
     if (!isValidPassword) {
-      return createErrorResponse("Invalid credentials", 401, "INVALID_CREDENTIALS");
+      return createErrorResponse(
+        "Invalid credentials",
+        401,
+        "INVALID_CREDENTIALS"
+      );
     }
 
     // Create session
@@ -84,4 +103,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleDatabaseError(error);
   }
-} 
+}

@@ -61,7 +61,7 @@ export const tenants = mysqlTable(
     phone: varchar("phone", { length: 20 }),
     address: text("address"),
     logo: varchar("logo", { length: 255 }),
-    ownerId: serial("owner_id").references(() => users.id, {
+    ownerId: varchar("id", { length: 128 }).references(() => users.id, {
       onDelete: "set null",
     }),
     createdAt: datetime("created_at"),
