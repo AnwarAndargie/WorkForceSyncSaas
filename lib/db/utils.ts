@@ -1,11 +1,11 @@
-import { nanoid } from 'nanoid';
+import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 
 /**
  * Generate a unique ID for database records
  */
 export function generateId(prefix?: string): string {
-  const id = nanoid(21);
+  const id = uuidv4().replace(/-/g, '').substring(0, 21);
   return prefix ? `${prefix}_${id}` : id;
 }
 
@@ -37,7 +37,7 @@ export function generateSlug(text: string): string {
  * Generate an invitation token
  */
 export function generateInvitationToken(): string {
-  return nanoid(32);
+  return uuidv4().replace(/-/g, '');
 }
 
 /**

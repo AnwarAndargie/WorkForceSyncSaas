@@ -39,6 +39,9 @@ export const clients = mysqlTable("clients", {
   adminId: varchar("admin_id", { length: 128 }).references(() => users.id, {
     onDelete: "set null",
   }),
+  tenantId: varchar("tenant_id", { length: 128 })
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 255 }),
   phone: varchar("phone", { length: 20 }),
   address: text("address"),
@@ -49,9 +52,6 @@ export const tenants = mysqlTable(
   "tenants",
   {
     id: varchar("id", { length: 128 }).primaryKey(),
-    clientId: varchar("client_id", { length: 128 })
-      .notNull()
-      .references(() => clients.id, { onDelete: "cascade" }),
     adminId: varchar("admin_id", { length: 128 })
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
@@ -61,9 +61,6 @@ export const tenants = mysqlTable(
     phone: varchar("phone", { length: 20 }),
     address: text("address"),
     logo: varchar("logo", { length: 255 }),
-    ownerId: varchar("id", { length: 128 }).references(() => users.id, {
-      onDelete: "set null",
-    }),
     createdAt: datetime("created_at"),
   },
   (table) => ({

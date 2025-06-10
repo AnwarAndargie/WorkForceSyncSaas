@@ -1,8 +1,8 @@
-// src/app/api/tenants/route.ts
+// src/app/api/companies/route.ts
 
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { tenants, users, TenantMembers } from "@/lib/db/schema";
+import { tenants, users, TenantMembers, clients } from "@/lib/db/schema";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -14,7 +14,7 @@ import { generateId, generateSlug } from "@/lib/db/utils";
 import { eq, desc, like, and, sql } from "drizzle-orm";
 
 /**
- * GET /api/tenants
+ * GET /api/companies
  * List tenants with pagination and search
  */
 export async function GET(request: NextRequest) {
@@ -52,8 +52,8 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/tenants
- * Create a new tenant
+ * POST /api/companies
+ * Create a new tenant (company)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -94,31 +94,34 @@ export async function POST(request: NextRequest) {
       slug = `${baseSlug}-${counter++}`;
     }
 
-    const insertResult = await db.insert(tenants).values({
+    const tenantId = generateId("tenant");
+    await db.insert(tenants).values({
+      id: tenantId,
       name,
       slug,
       email,
       address,
       phone,
-      ownerId,
       logo,
+      adminId: ownerId,
+      createdAt: new Date(),
     });
 
     const createdTenant = await db
       .select()
       .from(tenants)
-      .where(eq(tenants.slug, slug))
+      .where(eq(tenants.id, tenantId))
       .limit(1);
 
     if (createdTenant.length === 0) {
-      return createErrorResponse("Failed to create tenant", 500);
+      return createErrorResponse("Failed to create company", 500);
     }
 
+    // Create tenant member record
     const memberData = {
       id: generateId("member"),
       userId: ownerId,
-      organizationId: createdTenant[0].id,
-      role: "owner" as const,
+      tenantId: createdTenant[0].id,
     };
 
     await db.insert(TenantMembers).values(memberData);

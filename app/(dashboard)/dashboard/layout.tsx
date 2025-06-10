@@ -5,6 +5,8 @@ import { AppSidebar } from "@/components/common/app-sidebar";
 import useSWR from "swr";
 import { User } from "@/lib/db/schema";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -16,7 +18,19 @@ export default function DashboardLayout({
   const { data: user } = useSWR<User>("/api/user", fetcher);
   const router = useRouter();
   if (!user) {
-    router.push("/auth/sign-in");
+    return (
+      <>
+        <Link
+          href="/pricing"
+          className="text-sm font-medium text-gray-700 hover:text-gray-900"
+        >
+          Pricing
+        </Link>
+        <Button asChild className="rounded-full">
+          <Link href="/auth/sign-up">Sign Up</Link>
+        </Button>
+      </>
+    );
   }
   return (
     <div className="flex h-screen space-x-64 w-full">

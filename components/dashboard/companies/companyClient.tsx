@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronDown, MoreHorizontal } from "lucide-react";
+import { ArrowUpDown, ChevronDown, MoreHorizontal, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -36,60 +36,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Trash, EyeIcon, Pen } from "lucide-react";
+import { useCompanies, Company } from "@/hooks/use-companies";
+import { CompanyFormDialog } from "./company-form-dialog";
 
-const data: Payment[] = [
-  {
-    name: "Assefa Security",
-    id: "m5gr84i9",
-    amount: 316,
-    status: "success",
-    plan: "basic",
-    email: "ken99@example.com",
-  },
-  {
-    name: "Tebkew Security",
-    id: "3u1reuv4",
-    amount: 242,
-    status: "success",
-    plan: "basic",
-    email: "Abe45@example.com",
-  },
-  {
-    id: "derv1ws0",
-    name: "Alemayehu Security",
-    amount: 837,
-    status: "processing",
-    plan: "Extra Basic",
-    email: "Monserrat44@example.com",
-  },
-  {
-    id: "5kma53ae",
-    name: "Abebe Installation",
-    amount: 874,
-    status: "success",
-    plan: "Pro Plan",
-    email: "Silas22@example.com",
-  },
-  {
-    id: "bhqecj4p",
-    name: "Abebe Maintainance",
-    amount: 721,
-    status: "failed",
-    plan: "Pro Plan",
-    email: "carmella@example.com",
-  },
-];
-
-export type Payment = {
-  id: string;
-  name: string;
-  amount: number;
-  status: "pending" | "processing" | "success" | "failed";
-  plan: string;
-  email: string;
-};
-
-export const columns: ColumnDef<Payment>[] = [
+export const columns: ColumnDef<Company>[] = [
   {
     id: "select",
     header: ({ table }) => (
@@ -130,107 +80,128 @@ export const columns: ColumnDef<Payment>[] = [
         </Button>
       );
     },
-    cell: ({ row }) => <div className="lowercase">{row.getValue("email")}</div>,
-  },
-  {
-    accessorKey: "status",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Status
-          <ArrowUpDown />
-        </Button>
-      );
-    },
-    cell: ({ row }) => (
-      <div className="lowercase">{row.getValue("status")}</div>
-    ),
-  },
-  {
-    accessorKey: "plan",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Plan
-          <ArrowUpDown />
-        </Button>
-      );
-    },
-    cell: ({ row }) => <div className="lowercase">{row.getValue("plan")}</div>,
-  },
-  {
-    accessorKey: "amount",
-    header: () => <div className="text-right">Amount Paid</div>,
     cell: ({ row }) => {
-      const amount = parseFloat(row.getValue("amount"));
-
-      // Format the amount as a dollar amount
-      const formatted = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-      }).format(amount);
-
-      return <div className="text-right font-medium">{formatted}</div>;
+      const email = row.getValue("email") as string;
+      return <div className="lowercase">{email || "-"}</div>;
+    },
+  },
+  {
+    accessorKey: "phone",
+    header: "Phone",
+    cell: ({ row }) => {
+      const phone = row.getValue("phone") as string;
+      return <div>{phone || "-"}</div>;
+    },
+  },
+  {
+    accessorKey: "address",
+    header: "Address",
+    cell: ({ row }) => {
+      const address = row.getValue("address") as string;
+      return <div className="max-w-[200px] truncate">{address || "-"}</div>;
+    },
+  },
+  {
+    accessorKey: "createdAt",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Created
+          <ArrowUpDown />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const date = row.getValue("createdAt") as string;
+      return date ? new Date(date).toLocaleDateString() : "-";
     },
   },
   {
     id: "actions",
     enableHiding: false,
     cell: ({ row }) => {
-      const payment = row.original;
+      const company = row.original;
 
       return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(payment.id)}
-            >
-              Copy payment ID
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <EyeIcon /> View Company
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Pen /> Edit Company
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Trash /> Edit Company
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <EyeIcon /> View Clients
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <CompanyActions company={company} />
       );
     },
   },
 ];
 
+function CompanyActions({ company }: { company: Company }) {
+  const { deleteCompany, isDeleting } = useCompanies();
+  const [editDialogOpen, setEditDialogOpen] = React.useState(false);
+
+  const handleDelete = async () => {
+    if (window.confirm("Are you sure you want to delete this company? This action cannot be undone.")) {
+      try {
+        await deleteCompany(company.id);
+        alert("Company deleted successfully");
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Failed to delete company");
+      }
+    }
+  };
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-8 w-8 p-0">
+            <span className="sr-only">Open menu</span>
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          <DropdownMenuItem
+            onClick={() => navigator.clipboard.writeText(company.id)}
+          >
+            Copy company ID
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
+            <Pen className="mr-2 h-4 w-4" />
+            Edit Company
+          </DropdownMenuItem>
+          <DropdownMenuItem 
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="text-red-600"
+          >
+            <Trash className="mr-2 h-4 w-4" />
+            Delete Company
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <CompanyFormDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        company={company}
+        mode="edit"
+      />
+    </>
+  );
+}
+
 export function CompanyClient() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  );
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
+  const [page, setPage] = React.useState(1);
+  const [search, setSearch] = React.useState("");
+  const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
+
+  const { companies, meta, isLoading, error } = useCompanies(page, 10, search);
 
   const table = useReactTable({
-    data,
+    data: companies,
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -246,7 +217,27 @@ export function CompanyClient() {
       columnVisibility,
       rowSelection,
     },
+    manualPagination: true,
+    pageCount: meta?.totalPages || 0,
   });
+
+  const handleSearchChange = React.useCallback((value: string) => {
+    setSearch(value);
+    setPage(1); // Reset to first page when searching
+  }, []);
+
+  if (error) {
+    return (
+      <div className="w-full">
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold">Companies</h1>
+          <p className="text-sm text-red-600">
+            Error loading companies: {error.message}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">
@@ -256,24 +247,22 @@ export function CompanyClient() {
           <Button
             variant="outline"
             className="ml-auto mb-4"
-            onClick={() => {
-              // Handle create new company action
-            }}
+            onClick={() => setCreateDialogOpen(true)}
           >
+            <Plus className="mr-2 h-4 w-4" />
             Create New Company
           </Button>
         </div>
         <p className="text-sm text-muted-foreground">
-          Manage your companies here.
+          Manage your companies here. Total: {meta?.total || 0}
         </p>
       </div>
+      
       <div className="flex items-center py-4">
         <Input
-          placeholder="Filter emails..."
-          value={(table.getColumn("email")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("email")?.setFilterValue(event.target.value)
-          }
+          placeholder="Search companies..."
+          value={search}
+          onChange={(event) => handleSearchChange(event.target.value)}
           className="max-w-sm"
         />
         <DropdownMenu>
@@ -303,6 +292,7 @@ export function CompanyClient() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      
       <div className="rounded-md border w-[100%] overflow-hidden">
         <Table>
           <TableHeader>
@@ -324,7 +314,13 @@ export function CompanyClient() {
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  Loading companies...
+                </TableCell>
+              </TableRow>
+            ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
@@ -346,37 +342,50 @@ export function CompanyClient() {
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  No results.
+                  No companies found.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
+      
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
+          {companies.length} row(s) selected.
+          {meta && (
+            <span className="ml-4">
+              Page {meta.page} of {Math.ceil((meta.total || 0) / (meta.limit || 10))} 
+              ({meta.total} total)
+            </span>
+          )}
         </div>
         <div className="space-x-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={!meta?.hasPrev || isLoading}
           >
             Previous
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            onClick={() => setPage(p => p + 1)}
+            disabled={!meta?.hasNext || isLoading}
           >
             Next
           </Button>
         </div>
       </div>
+
+      <CompanyFormDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        mode="create"
+      />
     </div>
   );
 }

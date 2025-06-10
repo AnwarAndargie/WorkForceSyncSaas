@@ -8,6 +8,29 @@ import {
   handleDatabaseError,
 } from "@/lib/api/response";
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const tenantId = params.id;
+
+    const tenant = await db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1);
+
+    if (tenant.length === 0) {
+      return createErrorResponse("Company not found", 404);
+    }
+
+    return createSuccessResponse(tenant[0], 200);
+  } catch (error) {
+    return handleDatabaseError(error);
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
