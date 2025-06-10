@@ -1,49 +1,25 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db/drizzle";
-import { users } from "@/lib/db/schema";
 import {
   createSuccessResponse,
   createErrorResponse,
   handleDatabaseError,
 } from "@/lib/api/response";
-import { eq } from "drizzle-orm";
+import { getSessionUser } from "@/lib/auth/session";
 
 /**
  * GET /api/user
- * Get current user information
- * This would typically use session/auth middleware to get the current user ID
+ * Get current user information based on the session (JWT in cookie)
  */
 export async function GET(request: NextRequest) {
   try {
-    // In a real application, you would get the user ID from the session/JWT token
-    // For now, we'll use a query parameter or header
+    // Get the authenticated user from the session
+    const sessionUser = await getSessionUser(request);
 
-    const userId =
-      request.headers.get("x-user-id") ||
-      request.nextUrl.searchParams.get("userId");
-
-    if (!userId) {
-      return createErrorResponse(
-        "User ID is required",
-        400,
-        "USER_ID_REQUIRED"
-      );
+    if (!sessionUser) {
+      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    const user = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (user.length === 0) {
-      return createErrorResponse("User not found", 404, "USER_NOT_FOUND");
-    }
-
-    // Remove password from response
-    const { passwordHash, ...safeUser } = user[0];
-
-    return createSuccessResponse(safeUser);
+    return createSuccessResponse(sessionUser); // already contains id, role, name, email, clientId (if available)
   } catch (error) {
     return handleDatabaseError(error);
   }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { use, useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { CircleIcon, Home, LogOut } from "lucide-react";
+import { User } from "@/lib/db/schema";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,8 +22,25 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 function UserMenu() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
+  const { data: user } = useSWR<User>("/api/user", fetcher);
   const router = useRouter();
+  console.log(user);
+
+  if (!user) {
+    return (
+      <>
+        <Link
+          href="/pricing"
+          className="text-sm font-medium text-gray-700 hover:text-gray-900"
+        >
+          Pricing
+        </Link>
+        <Button asChild className="rounded-full">
+          <Link href="/auth/sign-up">Sign Up</Link>
+        </Button>
+      </>
+    );
+  }
 
   async function handleSignOut() {
     // await signOut();

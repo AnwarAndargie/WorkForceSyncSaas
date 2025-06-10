@@ -9,7 +9,7 @@ import {
   validateRequiredFields,
 } from "@/lib/api/response";
 import { hashPassword, generateId } from "@/lib/db/utils";
-import { setSessionCookie } from "@/lib/auth/session";
+import { setSession } from "@/lib/auth/session";
 
 /**
  * POST /api/auth/register
@@ -18,7 +18,12 @@ import { setSessionCookie } from "@/lib/auth/session";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const validationError = validateRequiredFields(body, ["name", "email", "password", "role"]);
+    const validationError = validateRequiredFields(body, [
+      "name",
+      "email",
+      "password",
+      "role",
+    ]);
     if (validationError) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
@@ -26,7 +31,12 @@ export async function POST(request: NextRequest) {
     const { name, email, password, role } = body;
 
     // Validate role
-    const validRoles = ["super_admin", "client_admin", "tenant_admin", "employee"];
+    const validRoles = [
+      "super_admin",
+      "client_admin",
+      "tenant_admin",
+      "employee",
+    ];
     if (!validRoles.includes(role)) {
       return createErrorResponse("Invalid role", 400, "INVALID_ROLE");
     }
@@ -39,7 +49,11 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (existingUser.length > 0) {
-      return createErrorResponse("User with this email already exists", 409, "USER_EXISTS");
+      return createErrorResponse(
+        "User with this email already exists",
+        409,
+        "USER_EXISTS"
+      );
     }
 
     // Hash password
@@ -50,7 +64,11 @@ export async function POST(request: NextRequest) {
       id: generateId("user"),
       name,
       email,
-      role: role as "super_admin" | "client_admin" | "tenant_admin" | "employee",
+      role: role as
+        | "super_admin"
+        | "client_admin"
+        | "tenant_admin"
+        | "employee",
       passwordHash,
       isActive: true,
       createdAt: new Date(),
@@ -59,7 +77,7 @@ export async function POST(request: NextRequest) {
     await db.insert(users).values(newUser);
 
     // Create session for the new user
-    await setSessionCookie(newUser.id);
+    await setSession(newUser);
 
     // Return user data (without password)
     const safeUserData = {
@@ -79,4 +97,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleDatabaseError(error);
   }
-} 
+}

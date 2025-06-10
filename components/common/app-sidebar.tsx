@@ -8,6 +8,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { User } from "@/lib/db/schema";
 
 import {
   Users,
@@ -30,15 +31,11 @@ import {
   X,
 } from "lucide-react";
 
-export function AppSidebar() {
-  const user = {
-    name: "Anwar",
-    role: "super_admin",
-  };
-
+export function AppSidebar({ user }: { user: User }) {
   const isSuperAdmin = user.role === "super_admin";
-  const isOrgAdmin = user.role === "org_admin";
-  const isMember = user.role === "member";
+  const isOrgAdmin = user.role === "tenant_admin";
+  const isClientAdmin = user.role === "client_admin";
+  const isMember = user.role === "employee";
 
   const navItems = [
     { href: "/dashboard", label: "Overview", icon: Home, visible: true },
@@ -48,12 +45,7 @@ export function AppSidebar() {
       icon: Building,
       visible: isSuperAdmin,
     },
-    {
-      href: "/dashboard/users",
-      label: "User Profile",
-      icon: UserRound,
-      visible: true,
-    },
+
     {
       href: "/dashboard/work-forces",
       label: "Workforce",
@@ -64,13 +56,13 @@ export function AppSidebar() {
       href: "/dashboard/clients",
       label: "Clients",
       icon: Users2,
-      visible: isOrgAdmin || isSuperAdmin,
+      visible: isOrgAdmin,
     },
     {
       href: "/dashboard/branches",
       label: "Branches",
       icon: ListCollapse,
-      visible: isOrgAdmin || isSuperAdmin,
+      visible: isOrgAdmin || isClientAdmin,
     },
     {
       href: "/dashboard/services",
