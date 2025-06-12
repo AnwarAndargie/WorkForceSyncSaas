@@ -1,3 +1,4 @@
+import { integer } from "drizzle-orm/gel-core";
 import {
   mysqlTable,
   serial,
@@ -25,6 +26,7 @@ export const users = mysqlTable(
       "employee",
     ]),
     passwordHash: text("password_hash"),
+    phone_number: varchar("phone_number", { length: 13 }),
     isActive: boolean("is_active").default(true),
     createdAt: datetime("created_at"),
   },
@@ -79,6 +81,7 @@ export const TenantMembers = mysqlTable(
     tenantId: varchar("tenant_id", { length: 128 })
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
+    salary: integer("salary"),
   },
   (table) => ({
     tenantUserIndex: index("org_user_idx").on(table.tenantId, table.userId),

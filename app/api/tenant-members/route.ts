@@ -1,6 +1,12 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { TenantMembers, users, tenants } from "@/lib/db/schema";
+import {
+  TenantMembers,
+  users,
+  tenants,
+  employeeBranches,
+  branches,
+} from "@/lib/db/schema";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -11,7 +17,10 @@ import {
 import { generateId } from "@/lib/db/utils";
 import { eq, desc, like, and, sql } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth/session";
-import { canPerformWriteOperation, checkTenantAccess } from "@/lib/auth/authorization";
+import {
+  canPerformWriteOperation,
+  checkTenantAccess,
+} from "@/lib/auth/authorization";
 
 /**
  * GET /api/tenant-members
@@ -32,7 +41,7 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     const conditions = [];
-    
+
     // Apply role-based filtering
     if (user.role === "super_admin") {
       // Super admin can see all members, optionally filtered by tenantId
@@ -43,28 +52,35 @@ export async function GET(request: NextRequest) {
         }
         conditions.push(eq(TenantMembers.tenantId, tenantId));
       }
-    } else if (user.role === "tenant_admin" && user.tenantId) {
+    } else if (user.role === "tenant_admin") {
       // Tenant admin can only see members in their tenant
       conditions.push(eq(TenantMembers.tenantId, user.tenantId));
     } else {
       return createErrorResponse("Forbidden", 403, "FORBIDDEN");
     }
-    
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Get members with user details
-    const membersList = await db
+    const employeesList = await db
       .select({
         id: TenantMembers.id,
         userId: TenantMembers.userId,
         tenantId: TenantMembers.tenantId,
+        branchId: employeeBranches.branchId,
+        branchName: branches.name,
         userName: users.name,
         userEmail: users.email,
+        userPhone: users.phone_number,
         tenantName: tenants.name,
+        salary: TenantMembers.salary,
       })
       .from(TenantMembers)
       .leftJoin(users, eq(TenantMembers.userId, users.id))
       .leftJoin(tenants, eq(TenantMembers.tenantId, tenants.id))
+      .leftJoin(
+        employeeBranches,
+        eq(TenantMembers.userId, employeeBranches.employeeId)
+      )
       .where(whereClause)
       .limit(limit)
       .offset(offset);
@@ -75,7 +91,7 @@ export async function GET(request: NextRequest) {
       .where(whereClause);
 
     const meta = createPaginationMeta(count, page, limit);
-    return createSuccessResponse(membersList, 200, meta);
+    return createSuccessResponse(employeesList, 200, meta);
   } catch (error) {
     return handleDatabaseError(error);
   }
@@ -93,11 +109,18 @@ export async function POST(request: NextRequest) {
     }
 
     if (!canPerformWriteOperation(user)) {
-      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+      return createErrorResponse(
+        "Forbidden: Insufficient permissions",
+        403,
+        "FORBIDDEN"
+      );
     }
 
     const body = await request.json();
-    const validationError = validateRequiredFields(body, ["userId", "tenantId"]);
+    const validationError = validateRequiredFields(body, [
+      "userId",
+      "tenantId",
+    ]);
     if (validationError) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
@@ -107,7 +130,11 @@ export async function POST(request: NextRequest) {
     // Check if user can access this tenant
     const hasAccess = await checkTenantAccess(user, tenantId);
     if (!hasAccess) {
-      return createErrorResponse("Forbidden: Cannot access this tenant", 403, "FORBIDDEN");
+      return createErrorResponse(
+        "Forbidden: Cannot access this tenant",
+        403,
+        "FORBIDDEN"
+      );
     }
 
     // Verify user exists
@@ -133,7 +160,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if member already exists
-    const existingMember = await db
+    const existingEmployee = await db
       .select()
       .from(TenantMembers)
       .where(
@@ -144,7 +171,7 @@ export async function POST(request: NextRequest) {
       )
       .limit(1);
 
-    if (existingMember.length > 0) {
+    if (existingEmployee.length > 0) {
       return createErrorResponse(
         "User is already a member of this tenant",
         409,
@@ -152,13 +179,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const newMember = {
+    const newEmploye = {
       id: generateId("member"),
       userId,
       tenantId,
     };
 
-    await db.insert(TenantMembers).values(newMember);
+    await db.insert(TenantMembers).values(newEmploye);
 
     // Return the created member with joined data
     const createdMember = await db
@@ -173,11 +200,11 @@ export async function POST(request: NextRequest) {
       .from(TenantMembers)
       .leftJoin(users, eq(TenantMembers.userId, users.id))
       .leftJoin(tenants, eq(TenantMembers.tenantId, tenants.id))
-      .where(eq(TenantMembers.id, newMember.id))
+      .where(eq(TenantMembers.id, newEmploye.id))
       .limit(1);
 
     return createSuccessResponse(createdMember[0], 201);
   } catch (error) {
     return handleDatabaseError(error);
   }
-} 
+}
