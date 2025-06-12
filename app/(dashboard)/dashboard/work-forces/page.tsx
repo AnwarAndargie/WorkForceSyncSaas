@@ -4,7 +4,7 @@ import { WorkForceClient } from "@/components/dashboard/work-forces/employeesCli
 function page() {
   return (
     <div>
-      <WorkForceClient />{" "}
+      <WorkForceClient />
     </div>
   );
 }

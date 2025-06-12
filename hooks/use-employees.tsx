@@ -22,8 +22,9 @@ const fetcher = async (url: string) => {
 export interface Employee {
   id: string;
   name: string;
+  email: string;
   phone_number?: string;
-  salary?: string;
+  salary?: number;
   address?: string;
   tenantId?: string;
   branchId?: string;
@@ -44,19 +45,22 @@ interface EmployeesResponse {
 
 interface CreateEmployeeData {
   name: string;
+  email: string;
   tenantId: string;
-  salary: string;
+  salary: number;
   branchId?: string;
-  phone_number?: string;
-  address?: string;
+  phone_number: string;
+  address: string;
 }
 
 interface UpdateEmployeeData {
   name?: string;
+  email: string;
   phone_number?: string;
-  salary?: string;
+  salary: number;
   address?: string;
   tenantId?: string;
+  branchId?: string;
 }
 
 export function useEmployees(page = 1, limit = 10, search = "") {

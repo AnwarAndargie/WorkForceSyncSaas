@@ -29,6 +29,7 @@ export const users = mysqlTable(
     phone_number: varchar("phone_number", { length: 13 }),
     isActive: boolean("is_active").default(true),
     createdAt: datetime("created_at"),
+    
   },
   (table) => ({
     emailIndex: index("email_idx").on(table.email),

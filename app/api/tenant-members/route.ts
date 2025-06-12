@@ -16,7 +16,7 @@ import {
 } from "@/lib/api/response";
 import { generateId } from "@/lib/db/utils";
 import { eq, desc, like, and, sql } from "drizzle-orm";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, hashPassword } from "@/lib/auth/session";
 import {
   canPerformWriteOperation,
   checkTenantAccess,
@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
         employeeBranches,
         eq(TenantMembers.userId, employeeBranches.employeeId)
       )
+      .leftJoin(branches, eq(employeeBranches.branchId, branches.id))
       .where(whereClause)
       .limit(limit)
       .offset(offset);
@@ -117,15 +118,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const validationError = validateRequiredFields(body, [
-      "userId",
-      "tenantId",
-    ]);
+    const validationError = validateRequiredFields(body, ["tenantId"]);
     if (validationError) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
 
-    const { userId, tenantId } = body;
+    const { tenantId, salary, branchId, name, email, address, phone_number } =
+      body;
 
     // Check if user can access this tenant
     const hasAccess = await checkTenantAccess(user, tenantId);
@@ -138,14 +137,37 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify user exists
-    const userToAdd = await db
+    let existingUser = await db
       .select()
       .from(users)
-      .where(eq(users.id, userId))
+      .where(eq(users.email, email))
       .limit(1);
 
-    if (userToAdd.length === 0) {
-      return createErrorResponse("User not found", 404, "USER_NOT_FOUND");
+    if (existingUser.length > 0) {
+      const isAlreadyMember = await db
+        .select()
+        .from(TenantMembers)
+        .where(
+          and(
+            eq(TenantMembers.userId, existingUser[0].id),
+            eq(TenantMembers.tenantId, tenantId)
+          )
+        )
+        .limit(1);
+
+      if (isAlreadyMember.length > 0) {
+        return createErrorResponse(
+          "User is already a member of this tenant",
+          409,
+          "MEMBER_EXISTS"
+        );
+      }
+
+      return createErrorResponse(
+        "User already exists but not in this tenant. Consider inviting.",
+        400,
+        "USER_EXISTS_DIFFERENT_TENANT"
+      );
     }
 
     // Verify tenant exists
@@ -159,33 +181,27 @@ export async function POST(request: NextRequest) {
       return createErrorResponse("Tenant not found", 404, "TENANT_NOT_FOUND");
     }
 
-    // Check if member already exists
-    const existingEmployee = await db
-      .select()
-      .from(TenantMembers)
-      .where(
-        and(
-          eq(TenantMembers.userId, userId),
-          eq(TenantMembers.tenantId, tenantId)
-        )
-      )
-      .limit(1);
+    const userId = generateId("employee");
 
-    if (existingEmployee.length > 0) {
-      return createErrorResponse(
-        "User is already a member of this tenant",
-        409,
-        "MEMBER_EXISTS"
-      );
-    }
-
-    const newEmploye = {
-      id: generateId("member"),
+    const newTenantMember = {
+      id: userId,
       userId,
       tenantId,
+      salary,
     };
 
-    await db.insert(TenantMembers).values(newEmploye);
+    const newUser = {
+      id: userId,
+      name,
+      email,
+      role: "employee",
+      password_hash: await hashPassword("abc1234"),
+      created_at: Date.now(),
+      phone_number,
+    };
+
+    await db.insert(TenantMembers).values(newTenantMember);
+    await db.insert(users).values(newUser);
 
     // Return the created member with joined data
     const createdMember = await db
@@ -200,7 +216,7 @@ export async function POST(request: NextRequest) {
       .from(TenantMembers)
       .leftJoin(users, eq(TenantMembers.userId, users.id))
       .leftJoin(tenants, eq(TenantMembers.tenantId, tenants.id))
-      .where(eq(TenantMembers.id, newEmploye.id))
+      .where(eq(TenantMembers.id, newTenantMember.id))
       .limit(1);
 
     return createSuccessResponse(createdMember[0], 201);
