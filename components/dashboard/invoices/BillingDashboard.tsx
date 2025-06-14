@@ -1,10 +1,23 @@
 "use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CreditCard, Download, RefreshCw, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface InvoiceItem {
   id: string;
@@ -63,7 +76,7 @@ export function BillingDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Billing</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Invoices</h2>
         <p className="text-muted-foreground">
           Manage your subscription and payment methods
         </p>
@@ -168,7 +181,11 @@ export function BillingDashboard() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Billing History</CardTitle>
-            <Button variant="outline" size="sm" className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1"
+            >
               <Download className="h-4 w-4" />
               Download All
             </Button>
@@ -209,4 +226,4 @@ export function BillingDashboard() {
       </Card>
     </div>
   );
-} 
+}

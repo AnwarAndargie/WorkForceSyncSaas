@@ -12,7 +12,6 @@ import {
   index,
 } from "drizzle-orm/mysql-core";
 
-// Users table (central user store for super admin, tenant admins, tenant members, and client contacts)
 export const users = mysqlTable(
   "users",
   {
@@ -24,19 +23,17 @@ export const users = mysqlTable(
       "client_admin",
       "tenant_admin",
       "employee",
-    ]),
+    ]).notNull(),
     passwordHash: text("password_hash"),
     phone_number: varchar("phone_number", { length: 13 }),
     isActive: boolean("is_active").default(true),
     createdAt: datetime("created_at"),
-    
   },
   (table) => ({
     emailIndex: index("email_idx").on(table.email),
   })
 );
 
-// Clients table (removed tenantId to break circular reference)
 export const clients = mysqlTable("clients", {
   id: varchar("id", { length: 128 }).primaryKey(),
   adminId: varchar("admin_id", { length: 128 }).references(() => users.id, {
@@ -50,7 +47,6 @@ export const clients = mysqlTable("clients", {
   address: text("address"),
 });
 
-// Tenants table
 export const tenants = mysqlTable(
   "tenants",
   {
@@ -71,7 +67,6 @@ export const tenants = mysqlTable(
   })
 );
 
-// TenantMembers table (associates users with tenants)
 export const TenantMembers = mysqlTable(
   "tenant_members",
   {
@@ -89,7 +84,6 @@ export const TenantMembers = mysqlTable(
   })
 );
 
-// Branches table
 export const branches = mysqlTable("branches", {
   id: varchar("id", { length: 128 }).primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
@@ -109,7 +103,6 @@ export const branches = mysqlTable("branches", {
   createdAt: datetime("created_at"),
 });
 
-// EmployeeBranches table
 export const employeeBranches = mysqlTable("employee_branches", {
   id: varchar("id", { length: 128 }).primaryKey(),
   employeeId: varchar("employee_id", { length: 128 }).references(
@@ -128,7 +121,6 @@ export const employeeBranches = mysqlTable("employee_branches", {
   assignedAt: datetime("assigned_at"),
 });
 
-// Assignments table
 export const assignments = mysqlTable("assignments", {
   id: varchar("id", { length: 128 }).primaryKey(),
   employeeId: varchar("employee_id", { length: 128 }).references(
@@ -145,7 +137,6 @@ export const assignments = mysqlTable("assignments", {
   status: mysqlEnum("status", ["active", "inactive", "completed"]),
 });
 
-// Shifts table
 export const shifts = mysqlTable("shifts", {
   id: varchar("id", { length: 128 }).primaryKey(),
   assignmentId: varchar("assignment_id", { length: 128 }).references(
@@ -172,7 +163,6 @@ export const shifts = mysqlTable("shifts", {
   status: mysqlEnum("status", ["scheduled", "completed", "cancelled"]),
 });
 
-// Reports table
 export const reports = mysqlTable("reports", {
   id: varchar("id", { length: 128 }).primaryKey(),
   assignmentId: varchar("assignment_id", { length: 128 }).references(
@@ -185,7 +175,6 @@ export const reports = mysqlTable("reports", {
   createdAt: datetime("created_at"),
 });
 
-// Contracts table
 export const contracts = mysqlTable("contracts", {
   id: varchar("id", { length: 128 }).primaryKey(),
   tenantId: varchar("tenant_id", { length: 128 }).references(() => tenants.id, {
@@ -215,7 +204,6 @@ export const invoices = mysqlTable("invoices", {
   paidAt: datetime("paid_at"),
 });
 
-// SubscriptionPlans table
 export const subscriptionPlans = mysqlTable("subscription_plans", {
   id: varchar("id", { length: 128 }).primaryKey(),
   name: varchar("name", { length: 255 }),
@@ -225,7 +213,6 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   createdAt: datetime("created_at"),
 });
 
-// Subscriptions table
 export const subscriptions = mysqlTable("subscriptions", {
   id: varchar("id", { length: 128 }).primaryKey(),
   tenantId: varchar("tenant_id", { length: 128 }).references(() => tenants.id, {
@@ -242,7 +229,6 @@ export const subscriptions = mysqlTable("subscriptions", {
   isActive: boolean("is_active").default(true),
 });
 
-// Notifications table
 export const notifications = mysqlTable("notifications", {
   id: varchar("id", { length: 128 }).primaryKey(),
   userId: varchar("user_id", { length: 128 }).references(() => users.id, {
@@ -254,7 +240,6 @@ export const notifications = mysqlTable("notifications", {
   createdAt: datetime("created_at"),
 });
 
-// Type exports for TypeScript
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 

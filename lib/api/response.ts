@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 
 export interface ApiError {
   message: string;
@@ -20,13 +20,10 @@ export interface ApiResponse<T = any> {
   };
 }
 
-/**
- * Create a successful API response
- */
 export function createSuccessResponse<T>(
   data: T,
   status: number = 200,
-  meta?: ApiResponse<T>['meta']
+  meta?: ApiResponse<T>["meta"]
 ): NextResponse<ApiResponse<T>> {
   return NextResponse.json(
     {
@@ -38,9 +35,6 @@ export function createSuccessResponse<T>(
   );
 }
 
-/**
- * Create an error API response
- */
 export function createErrorResponse(
   message: string,
   status: number = 400,
@@ -62,66 +56,57 @@ export function createErrorResponse(
   );
 }
 
-/**
- * Handle database errors and convert them to API responses
- */
 export function handleDatabaseError(error: any): NextResponse<ApiResponse> {
-  console.error('Database error:', error);
+  console.error("Database error:", error);
 
-  // Handle specific MySQL errors
-  if (error.code === 'ER_DUP_ENTRY') {
+  if (error.code === "ER_DUP_ENTRY") {
     return createErrorResponse(
-      'A record with this information already exists',
+      "A record with this information already exists",
       409,
-      'DUPLICATE_ENTRY'
+      "DUPLICATE_ENTRY"
     );
   }
 
-  if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+  if (error.code === "ER_NO_REFERENCED_ROW_2") {
     return createErrorResponse(
-      'Referenced record does not exist',
+      "Referenced record does not exist",
       400,
-      'INVALID_REFERENCE'
+      "INVALID_REFERENCE"
     );
   }
 
-  // Handle Drizzle validation errors
-  if (error.name === 'DrizzleError') {
+  if (error.name === "DrizzleError") {
     return createErrorResponse(
-      'Invalid data provided',
+      "Invalid data provided",
       400,
-      'VALIDATION_ERROR',
+      "VALIDATION_ERROR",
       undefined,
       error.message
     );
   }
 
-  // Generic database error
   return createErrorResponse(
-    'An unexpected database error occurred',
+    "An unexpected database error occurred",
     500,
-    'DATABASE_ERROR'
+    "DATABASE_ERROR"
   );
 }
 
-/**
- * Validate required fields in request body
- */
 export function validateRequiredFields(
   body: any,
   requiredFields: string[]
 ): string | null {
   for (const field of requiredFields) {
-    if (!body[field] || (typeof body[field] === 'string' && body[field].trim() === '')) {
+    if (
+      !body[field] ||
+      (typeof body[field] === "string" && body[field].trim() === "")
+    ) {
       return `${field} is required`;
     }
   }
   return null;
 }
 
-/**
- * Create pagination metadata
- */
 export function createPaginationMeta(
   total: number,
   page: number,
@@ -136,4 +121,4 @@ export function createPaginationMeta(
     hasNext: page < totalPages,
     hasPrev: page > 1,
   };
-} 
+}

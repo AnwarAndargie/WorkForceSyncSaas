@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -6,20 +6,13 @@ import {
 } from "@/lib/api/response";
 import { getSessionUser } from "@/lib/auth/session";
 
-/**
- * GET /api/user
- * Get current user information based on the session (JWT in cookie)
- */
 export async function GET(request: NextRequest) {
   try {
-    // Get the authenticated user from the session
     const sessionUser = await getSessionUser(request);
-
     if (!sessionUser) {
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
-
-    return createSuccessResponse(sessionUser); // already contains id, role, name, email, clientId (if available)
+    return NextResponse.json(sessionUser);
   } catch (error) {
     return handleDatabaseError(error);
   }
