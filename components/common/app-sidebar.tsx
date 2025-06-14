@@ -108,7 +108,7 @@ export function AppSidebar({ user }: { user: SessionUser }) {
     {
       href: "/dashboard/reports",
       label: "Reports",
-      icon: BarChart3,
+      icon: Mail,
       visible: isOrgAdmin || isClientAdmin,
     },
     {
@@ -124,7 +124,7 @@ export function AppSidebar({ user }: { user: SessionUser }) {
       visible: isSuperAdmin || isOrgAdmin,
     },
     {
-      href: "/dashboard/general",
+      href: "/dashboard/settings",
       label: "Settings",
       icon: Settings,
       visible: true,

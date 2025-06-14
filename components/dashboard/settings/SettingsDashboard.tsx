@@ -1,23 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle } from "lucide-react";
+import useSWR from "swr";
+import { SessionUser } from "@/lib/auth/types";
 
-export function SettingsDashboard() {
-  const [accountForm, setAccountForm] = useState({
-    name: "John Doe",
-    email: "john.doe@example.com",
-    company: "Acme Inc.",
+const fetcher = (url: string) =>
+  fetch(url).then(async (res) => {
+    return res.json();
   });
 
+export function SettingsDashboard() {
+  const [accountForm, setAccountForm] = useState<SessionUser>();
+  const { data: user } = useSWR<SessionUser>("api/user", fetcher);
   const [securityForm, setSecurityForm] = useState({
-    currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
@@ -31,7 +39,7 @@ export function SettingsDashboard() {
 
   const handleAccountFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setAccountForm((prev) => ({ ...prev, [name]: value }));
+    // setAccountForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSecurityFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -39,13 +47,26 @@ export function SettingsDashboard() {
     setSecurityForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleNotificationToggle = (setting: keyof typeof notificationSettings) => {
+  const handleNotificationToggle = (
+    setting: keyof typeof notificationSettings
+  ) => {
     setNotificationSettings((prev) => ({
       ...prev,
       [setting]: !prev[setting],
     }));
   };
-
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const userReponse = await fetch("api/user");
+        const user = await userReponse.json();
+        setAccountForm(user);
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    fetchUser();
+  }, []);
   return (
     <div className="space-y-6">
       <div>
@@ -60,7 +81,6 @@ export function SettingsDashboard() {
           <TabsTrigger value="account">Account</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="api">API Keys</TabsTrigger>
         </TabsList>
 
         <TabsContent value="account">
@@ -77,7 +97,8 @@ export function SettingsDashboard() {
                 <Input
                   id="name"
                   name="name"
-                  value={accountForm.name}
+                  defaultValue={accountForm?.name}
+                  value={accountForm?.name}
                   onChange={handleAccountFormChange}
                 />
               </div>
@@ -87,16 +108,16 @@ export function SettingsDashboard() {
                   id="email"
                   name="email"
                   type="email"
-                  value={accountForm.email}
+                  value={accountForm?.email}
                   onChange={handleAccountFormChange}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="company">Company</Label>
+                <Label htmlFor="company">Role</Label>
                 <Input
                   id="company"
                   name="company"
-                  value={accountForm.company}
+                  value={accountForm?.role}
                   onChange={handleAccountFormChange}
                 />
               </div>
@@ -116,16 +137,6 @@ export function SettingsDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="currentPassword">Current Password</Label>
-                <Input
-                  id="currentPassword"
-                  name="currentPassword"
-                  type="password"
-                  value={securityForm.currentPassword}
-                  onChange={handleSecurityFormChange}
-                />
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="newPassword">New Password</Label>
                 <Input
@@ -171,7 +182,9 @@ export function SettingsDashboard() {
                 </div>
                 <Switch
                   checked={notificationSettings.emailUpdates}
-                  onCheckedChange={() => handleNotificationToggle("emailUpdates")}
+                  onCheckedChange={() =>
+                    handleNotificationToggle("emailUpdates")
+                  }
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -183,7 +196,9 @@ export function SettingsDashboard() {
                 </div>
                 <Switch
                   checked={notificationSettings.newFeatures}
-                  onCheckedChange={() => handleNotificationToggle("newFeatures")}
+                  onCheckedChange={() =>
+                    handleNotificationToggle("newFeatures")
+                  }
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -195,7 +210,9 @@ export function SettingsDashboard() {
                 </div>
                 <Switch
                   checked={notificationSettings.marketingEmails}
-                  onCheckedChange={() => handleNotificationToggle("marketingEmails")}
+                  onCheckedChange={() =>
+                    handleNotificationToggle("marketingEmails")
+                  }
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -207,7 +224,9 @@ export function SettingsDashboard() {
                 </div>
                 <Switch
                   checked={notificationSettings.securityAlerts}
-                  onCheckedChange={() => handleNotificationToggle("securityAlerts")}
+                  onCheckedChange={() =>
+                    handleNotificationToggle("securityAlerts")
+                  }
                 />
               </div>
               <Button className="mt-4 bg-orange-600 hover:bg-orange-500">
@@ -216,51 +235,7 @@ export function SettingsDashboard() {
             </CardContent>
           </Card>
         </TabsContent>
-
-        <TabsContent value="api">
-          <Card>
-            <CardHeader>
-              <CardTitle>API Keys</CardTitle>
-              <CardDescription>
-                Manage your API keys for programmatic access
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center space-x-4 rounded-md border p-4">
-                <div className="flex-1 space-y-1">
-                  <p className="text-sm font-medium leading-none">Production API Key</p>
-                  <p className="text-sm text-gray-500">Last used 2 days ago</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">
-                    Show
-                  </Button>
-                  <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
-                    Revoke
-                  </Button>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4 rounded-md border p-4">
-                <div className="flex-1 space-y-1">
-                  <p className="text-sm font-medium leading-none">Development API Key</p>
-                  <p className="text-sm text-gray-500">Last used 5 hours ago</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">
-                    Show
-                  </Button>
-                  <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
-                    Revoke
-                  </Button>
-                </div>
-              </div>
-              <Button className="mt-4 bg-orange-600 hover:bg-orange-500">
-                Generate New API Key
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );
-} 
+}

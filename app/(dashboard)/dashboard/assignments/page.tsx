@@ -1,27 +1,33 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Calendar, 
-  CheckCircle2, 
-  PlusCircle, 
-  Clock, 
+import {
+  Calendar,
+  CheckCircle2,
+  PlusCircle,
+  Clock,
   AlertCircle,
-  Filter, 
+  Filter,
   Download,
   Search,
-  Loader2
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import {
@@ -67,16 +73,16 @@ export default function AssignmentsPage() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
+
         // Fetch assignments
-        const assignmentsResponse = await fetch('/api/assignments', {
-          credentials: 'include',
+        const assignmentsResponse = await fetch("/api/assignments", {
+          credentials: "include",
         });
-        
+
         if (!assignmentsResponse.ok) {
-          throw new Error('Failed to fetch assignments');
+          throw new Error("Failed to fetch assignments");
         }
-        
+
         const assignmentsData = await assignmentsResponse.json();
         setAssignments(assignmentsData);
 
@@ -84,14 +90,13 @@ export default function AssignmentsPage() {
         // const shiftsResponse = await fetch('/api/shifts', {
         //   credentials: 'include',
         // });
-        // 
+        //
         // if (shiftsResponse.ok) {
         //   const shiftsData = await shiftsResponse.json();
         //   setShifts(shiftsData);
         // }
-        
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load data');
+        setError(err instanceof Error ? err.message : "Failed to load data");
       } finally {
         setLoading(false);
       }
@@ -101,30 +106,40 @@ export default function AssignmentsPage() {
   }, []);
 
   // Filter assignments based on search and status
-  const filteredAssignments = assignments.filter(assignment => {
-    const matchesSearch = searchQuery === "" || 
-      assignment.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      assignment.employeeId.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || assignment.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
+
+  const filteredAssignments =
+    assignments.length > 0 &&
+    assignments.filter((assignment) => {
+      const matchesSearch =
+        searchQuery === "" ||
+        assignment.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        assignment.employeeId.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesStatus =
+        statusFilter === "all" || assignment.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
 
   // Statistics calculations
-  const stats = {
-    total: assignments.length,
-    active: assignments.filter(a => a.status === "active").length,
-    completed: assignments.filter(a => a.status === "completed").length,
-    inactive: assignments.filter(a => a.status === "inactive").length,
-  };
+  // const stats
+  // assignments.length>0 && const stats = {
+  //   total: assignments.length,
+  //   active: assignments.filter((a) => a.status === "active").length,
+  //   completed: assignments.filter((a) => a.status === "completed").length,
+  //   inactive: assignments.filter((a) => a.status === "inactive").length,
+  // };
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
-      case "active": return "default";
-      case "completed": return "secondary";
-      case "inactive": return "destructive";
-      default: return "outline";
+      case "active":
+        return "default";
+      case "completed":
+        return "secondary";
+      case "inactive":
+        return "destructive";
+      default:
+        return "outline";
     }
   };
 
@@ -165,44 +180,48 @@ export default function AssignmentsPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Assignments</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Total Assignments
+            </CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="text-2xl font-bold">{}</div>
             <p className="text-xs text-muted-foreground">All assignments</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.active}</div>
+            <div className="text-2xl font-bold">{}</div>
             <p className="text-xs text-muted-foreground">Currently running</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Completed</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.completed}</div>
-            <p className="text-xs text-muted-foreground">Successfully finished</p>
+            <div className="text-2xl font-bold">{}</div>
+            <p className="text-xs text-muted-foreground">
+              Successfully finished
+            </p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Inactive</CardTitle>
             <AlertCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.inactive}</div>
+            <div className="text-2xl font-bold">{}</div>
             <p className="text-xs text-muted-foreground">Paused or cancelled</p>
           </CardContent>
         </Card>
@@ -263,7 +282,7 @@ export default function AssignmentsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAssignments.length > 0 ? (
+                {filteredAssignments && filteredAssignments.length > 0 ? (
                   filteredAssignments.map((assignment) => (
                     <TableRow key={assignment.id}>
                       <TableCell className="font-medium">
@@ -275,13 +294,14 @@ export default function AssignmentsPage() {
                         {new Date(assignment.startDate).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
-                        {assignment.endDate 
-                          ? new Date(assignment.endDate).toLocaleDateString() 
-                          : "Ongoing"
-                        }
+                        {assignment.endDate
+                          ? new Date(assignment.endDate).toLocaleDateString()
+                          : "Ongoing"}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getStatusBadgeVariant(assignment.status)}>
+                        <Badge
+                          variant={getStatusBadgeVariant(assignment.status)}
+                        >
                           {assignment.status}
                         </Badge>
                       </TableCell>
@@ -306,4 +326,4 @@ export default function AssignmentsPage() {
       </Card>
     </div>
   );
-} 
+}

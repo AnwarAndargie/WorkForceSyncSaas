@@ -28,14 +28,6 @@ export default function DashboardLayout({
 
   console.log("User role:", user?.role, "Error:", error, "Loading:", isLoading);
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <p>Loading...</p>
-      </div>
-    );
-  }
-
   if (error || !user) {
     return (
       <div className="flex justify-center items-center h-screen space-x-4">
