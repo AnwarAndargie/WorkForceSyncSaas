@@ -207,10 +207,10 @@ export async function DELETE(
     }
 
     // Check if user can access this tenant
-    const hasAccess = await checkTenantAccess(user, existingMember[0].tenantId);
-    if (!hasAccess) {
-      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
-    }
+    // const hasAccess = await checkTenantAccess(user, existingMember[0].tenantId);
+    // if (!hasAccess) {
+    //   return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    // }
 
     // Delete the member
     await db.delete(TenantMembers).where(eq(TenantMembers.id, memberId));

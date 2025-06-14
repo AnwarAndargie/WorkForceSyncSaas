@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { clients, tenants, branches } from "@/lib/db/schema";
+import { clients, tenants, users } from "@/lib/db/schema";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -11,16 +11,15 @@ import {
 import { generateId } from "@/lib/db/utils";
 import { eq, desc, like, and, sql } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth/session";
-import { canPerformWriteOperation, checkTenantAccess } from "@/lib/auth/authorization";
 
 /**
  * GET /api/clients
- * List clients with pagination and search (with auth)
+ * List clients with pagination and search (tenant isolated)
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser(request);
-    if (!user) {
+    const sessionUser = await getSessionUser(request);
+    if (!sessionUser) {
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
@@ -28,48 +27,39 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 100);
     const search = searchParams.get("search");
-    const tenantId = searchParams.get("tenantId");
     const offset = (page - 1) * limit;
 
-    const conditions = [];
+    // Determine tenant access based on user role
+    let tenantId: string;
     
-    // Apply role-based filtering
-    if (user.role === "super_admin") {
-      // Super admin can see all clients, optionally filtered by tenantId
-      if (tenantId) {
-        conditions.push(eq(clients.tenantId, tenantId));
+    if (sessionUser.role === "super_admin") {
+      // Super admin can specify which tenant's clients to view
+      const requestedTenantId = searchParams.get("tenantId");
+      if (!requestedTenantId) {
+        return createErrorResponse("tenantId required for super_admin", 400, "TENANT_ID_REQUIRED");
       }
-    } else if (user.role === "tenant_admin" && user.tenantId) {
-      // Tenant admin can only see clients in their tenant
-      conditions.push(eq(clients.tenantId, user.tenantId));
-    } else if (user.role === "client_admin" && user.clientId) {
-      // Client admin can only see their own client (but this endpoint might not be relevant for them)
-      conditions.push(eq(clients.id, user.clientId));
+      tenantId = requestedTenantId;
+    } else if (sessionUser.role === "tenant_admin") {
+      // Tenant admin can only see their own tenant's clients
+      if (!sessionUser.tenantId) {
+        return createErrorResponse("User not associated with a tenant", 403, "NO_TENANT_ACCESS");
+      }
+      tenantId = sessionUser.tenantId;
     } else {
-      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+      return createErrorResponse("Insufficient permissions", 403, "INSUFFICIENT_PERMISSIONS");
     }
 
+    const conditions = [eq(clients.tenantId, tenantId)];
     if (search) {
       conditions.push(like(clients.name, `%${search}%`));
     }
-    
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = and(...conditions);
 
-    // Get clients with tenant details
-    const clientsList = await db
-      .select({
-        id: clients.id,
-        tenantId: clients.tenantId,
-        name: clients.name,
-        phone: clients.phone,
-        address: clients.address,
-        adminId: clients.adminId,
-        tenantName: tenants.name,
-      })
+    const clientList = await db
+      .select()
       .from(clients)
-      .leftJoin(tenants, eq(clients.tenantId, tenants.id))
       .where(whereClause)
-      .orderBy(desc(clients.name))
+      .orderBy(desc(clients.id))
       .limit(limit)
       .offset(offset);
 
@@ -79,7 +69,7 @@ export async function GET(request: NextRequest) {
       .where(whereClause);
 
     const meta = createPaginationMeta(count, page, limit);
-    return createSuccessResponse(clientsList, 200, meta);
+    return createSuccessResponse(clientList, 200, meta);
   } catch (error) {
     return handleDatabaseError(error);
   }
@@ -87,31 +77,41 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/clients
- * Create a new client (with auth)
+ * Create a new client (tenant isolated)
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser(request);
-    if (!user) {
+    const sessionUser = await getSessionUser(request);
+    if (!sessionUser) {
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    if (!canPerformWriteOperation(user)) {
-      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
-    }
-
     const body = await request.json();
-    const validationError = validateRequiredFields(body, ["name", "tenantId"]);
+    const validationError = validateRequiredFields(body, ["name"]);
     if (validationError) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
 
-    const { name, tenantId, phone, address, adminId } = body;
+    const { name, phone, address, adminId } = body;
 
-    // Check if user can access this tenant
-    const hasAccess = await checkTenantAccess(user, tenantId);
-    if (!hasAccess) {
-      return createErrorResponse("Forbidden: Cannot access this tenant", 403, "FORBIDDEN");
+    // Determine tenant access based on user role
+    let tenantId: string;
+    
+    if (sessionUser.role === "super_admin") {
+      // Super admin can specify which tenant to create client for
+      const requestedTenantId = body.tenantId;
+      if (!requestedTenantId) {
+        return createErrorResponse("tenantId required for super_admin", 400, "TENANT_ID_REQUIRED");
+      }
+      tenantId = requestedTenantId;
+    } else if (sessionUser.role === "tenant_admin") {
+      // Tenant admin can only create clients for their own tenant
+      if (!sessionUser.tenantId) {
+        return createErrorResponse("User not associated with a tenant", 403, "NO_TENANT_ACCESS");
+      }
+      tenantId = sessionUser.tenantId;
+    } else {
+      return createErrorResponse("Insufficient permissions", 403, "INSUFFICIENT_PERMISSIONS");
     }
 
     // Verify tenant exists
@@ -125,31 +125,38 @@ export async function POST(request: NextRequest) {
       return createErrorResponse("Tenant not found", 404, "TENANT_NOT_FOUND");
     }
 
-    const newClient = {
-      id: generateId("client"),
-      tenantId,
+    // If adminId is provided, verify the user exists and can be a client admin
+    if (adminId) {
+      const adminUser = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, adminId))
+        .limit(1);
+
+      if (adminUser.length === 0) {
+        return createErrorResponse("Admin user not found", 404, "ADMIN_NOT_FOUND");
+      }
+
+      if (adminUser[0].role !== "client_admin") {
+        return createErrorResponse("User must have client_admin role", 400, "INVALID_ADMIN_ROLE");
+      }
+    }
+
+    // Create the client
+    const clientId = generateId("client");
+    await db.insert(clients).values({
+      id: clientId,
       name,
-      phone: phone || null,
-      address: address || null,
-      adminId: adminId || null,
-    };
+      phone,
+      address,
+      adminId,
+      tenantId,
+    });
 
-    await db.insert(clients).values(newClient);
-
-    // Return the created client with joined data
     const createdClient = await db
-      .select({
-        id: clients.id,
-        tenantId: clients.tenantId,
-        name: clients.name,
-        phone: clients.phone,
-        address: clients.address,
-        adminId: clients.adminId,
-        tenantName: tenants.name,
-      })
+      .select()
       .from(clients)
-      .leftJoin(tenants, eq(clients.tenantId, tenants.id))
-      .where(eq(clients.id, newClient.id))
+      .where(eq(clients.id, clientId))
       .limit(1);
 
     return createSuccessResponse(createdClient[0], 201);

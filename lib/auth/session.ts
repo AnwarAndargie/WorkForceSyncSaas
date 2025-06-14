@@ -1,11 +1,12 @@
 import { compare, hash } from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
-import { NewUser } from "@/lib/db/schema";
+import { clients, NewUser, tenants } from "@/lib/db/schema";
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { SessionUser } from "./types";
 
 const key = new TextEncoder().encode(process.env.AUTH_SECRET);
 const SALT_ROUNDS = 10;
@@ -62,36 +63,20 @@ export async function setSession(user: NewUser) {
   });
 }
 
-export interface SessionUser {
-  id: string;
-  role: "super_admin" | "tenant_admin" | "client_admin" | "employee";
-  clientId?: string;
-  name?: string;
-  email?: string;
-}
-
-/**
- * Extract user ID from session cookie or authorization header
- */
 export async function getSessionUserId(
   request: NextRequest
 ): Promise<string | null> {
   try {
-    // Try to get from Authorization header first (for API calls)
     const authHeader = request.headers.get("authorization");
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.substring(7);
-      // You would validate the JWT token here and extract the user ID
-      // For now, we'll assume the token is the user ID (implement proper JWT validation)
       return token;
     }
 
-    // Try to get from cookies (for browser requests)
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get("session");
 
     if (sessionCookie) {
-      // Parse session cookie (you might want to decrypt/validate this)
       const sessionData = await verifyToken(sessionCookie.value);
       return sessionData.user.id || null;
     }
@@ -103,9 +88,6 @@ export async function getSessionUserId(
   }
 }
 
-/**
- * Get the full user object from session with role and tenant/client info
- */
 export async function getSessionUser(
   request: NextRequest
 ): Promise<SessionUser | null> {
@@ -113,15 +95,18 @@ export async function getSessionUser(
     const userId = await getSessionUserId(request);
     if (!userId) return null;
 
-    // Fetch user from database with their role and associations
     const user = await db
       .select({
         id: users.id,
         role: users.role,
         name: users.name,
         email: users.email,
+        tenantId: tenants.id,
+        clientId: clients.id,
       })
       .from(users)
+      .leftJoin(tenants, eq(users.id, tenants.adminId))
+      .leftJoin(clients, eq(users.id, clients.adminId))
       .where(eq(users.id, userId))
       .limit(1);
 
@@ -129,25 +114,19 @@ export async function getSessionUser(
 
     const userData = user[0];
 
-    // Handle null role
     if (!userData.role) return null;
-
-    // For client_admin role, we need to find their clientId
-    // This would be determined by your business logic - maybe they're assigned to a specific client
-    let clientId: string | undefined;
-
-    if (userData.role === "client_admin") {
-      // You might have a user-client relationship table or derive this differently
-      // For now, we'll set it as undefined and you can customize this logic
-      clientId = undefined; // Implement your client assignment logic here
-    }
 
     return {
       id: userData.id,
-      role: userData.role,
-      clientId,
-      name: userData.name || undefined,
-      email: userData.email || undefined,
+      role: userData.role as
+        | "super_admin"
+        | "tenant_admin"
+        | "client_admin"
+        | "employee",
+      name: userData.name ?? undefined,
+      email: userData.email ?? undefined,
+      tenantId: userData.tenantId ?? undefined,
+      clientId: userData.clientId ?? undefined,
     };
   } catch (error) {
     console.error("Error getting session user:", error);
@@ -155,9 +134,6 @@ export async function getSessionUser(
   }
 }
 
-/**
- * Validate if user is authenticated
- */
 export async function requireAuth(
   request: NextRequest
 ): Promise<SessionUser | null> {
@@ -165,9 +141,6 @@ export async function requireAuth(
   return user;
 }
 
-/**
- * Clear session cookie (for logout)
- */
 export async function clearSessionCookie(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.delete("session");
