@@ -1,8 +1,10 @@
 import { z } from "zod";
-import { User, Organization } from "@/lib/db/schema";
-import { getOrganizationById } from "@/lib/db/queries/organizations";
-import { getUser } from "@/lib/db/queries/users";
+import { User, Tenant, users } from "@/lib/db/schema";
+import { db } from "../db/drizzle";
 import { redirect } from "next/navigation";
+import { getSessionUser, getSessionUserId } from "./session";
+import { NextRequest } from "next/server";
+import { eq } from "drizzle-orm";
 
 export type ActionState = {
   error?: string;
@@ -39,8 +41,20 @@ export function validatedActionWithUser<S extends z.ZodType<any, any>, T>(
   schema: S,
   action: ValidatedActionWithUserFunction<S, T>
 ) {
-  return async (prevState: ActionState, formData: FormData): Promise<T> => {
-    const user = await getUser();
+  return async (
+    prevState: ActionState,
+    formData: FormData,
+    request: NextRequest
+  ): Promise<T> => {
+    const sessionUser = await getSessionUser(request);
+    if (!sessionUser) {
+      throw new Error("User is not authenticated");
+    }
+    const user = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, sessionUser?.id))
+      .limit(1);
     if (!user) {
       throw new Error("User is not authenticated");
     }
@@ -50,27 +64,6 @@ export function validatedActionWithUser<S extends z.ZodType<any, any>, T>(
       return { error: result.error.errors[0].message } as T;
     }
 
-    return action(result.data, formData, user);
-  };
-}
-
-type ActionWithTeamFunction<T> = (
-  formData: FormData,
-  org: Organization | null
-) => Promise<T>;
-
-export function withTeam<T>(action: ActionWithTeamFunction<T>) {
-  return async (formData: FormData): Promise<T> => {
-    const user = await getUser();
-    if (!user) {
-      redirect("/sign-in");
-    }
-
-    const org = await getOrganizationById(user.organizationId);
-    if (!org) {
-      throw new Error("Organization not found");
-    }
-
-    return action(formData, org);
+    return action(result.data, formData, user[0]);
   };
 }

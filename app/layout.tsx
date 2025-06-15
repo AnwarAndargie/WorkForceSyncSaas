@@ -20,10 +20,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-          <SidebarProvider>
-            <SidebarTrigger />
-            <main>{children}</main>
-          </SidebarProvider>
+          <main>{children}</main>
         </ThemeProvider>
       </body>
     </html>

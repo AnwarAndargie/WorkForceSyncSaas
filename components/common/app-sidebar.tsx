@@ -2,13 +2,14 @@ import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
-  SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarGroupContent,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-
+import { SessionUser } from "@/lib/auth/types";
+import { User } from "@/lib/db/schema";
 import {
   Users,
   Settings,
@@ -30,15 +31,35 @@ import {
   X,
 } from "lucide-react";
 
-export function AppSidebar() {
-  const user = {
-    name: "Anwar",
-    role: "super_admin",
-  };
+export function AppSidebar({ user }: { user: SessionUser }) {
+  if (!user) {
+    return (
+      <Sidebar className="h-screen w-64 border-r bg-white z-40 mt-22 ml-8">
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="flex flex-col gap-3">
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <a href="/dashboard">
+                      <Home />
+                      <span>Overview</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
+    );
+  }
 
   const isSuperAdmin = user.role === "super_admin";
-  const isOrgAdmin = user.role === "org_admin";
-  const isMember = user.role === "member";
+  const isOrgAdmin = user.role === "tenant_admin";
+  const isClientAdmin = user.role === "client_admin";
+  const isEmployee = user.role === "employee";
 
   const navItems = [
     { href: "/dashboard", label: "Overview", icon: Home, visible: true },
@@ -49,58 +70,46 @@ export function AppSidebar() {
       visible: isSuperAdmin,
     },
     {
-      href: "/dashboard/users",
-      label: "User Profile",
-      icon: UserRound,
-      visible: true,
-    },
-    {
-      href: "/dashboard/team",
+      href: "/dashboard/work-forces",
       label: "Workforce",
       icon: Users,
-      visible: isOrgAdmin || isSuperAdmin,
+      visible: isOrgAdmin,
     },
     {
       href: "/dashboard/clients",
       label: "Clients",
       icon: Users2,
-      visible: isOrgAdmin || isSuperAdmin,
+      visible: isOrgAdmin,
     },
     {
       href: "/dashboard/branches",
       label: "Branches",
       icon: ListCollapse,
-      visible: isOrgAdmin || isSuperAdmin,
-    },
-    {
-      href: "/dashboard/services",
-      label: "Services",
-      icon: Briefcase,
-      visible: isOrgAdmin || isSuperAdmin,
+      visible: isClientAdmin,
     },
     {
       href: "/dashboard/assignments",
       label: "Assignments",
       icon: Calendar,
-      visible: true,
+      visible: !isSuperAdmin,
     },
     {
       href: "/dashboard/contracts",
       label: "Contracts",
       icon: FileText,
-      visible: isOrgAdmin || isSuperAdmin,
+      visible: isOrgAdmin || isSuperAdmin || isClientAdmin,
     },
     {
       href: "/dashboard/invoices",
       label: "Invoices",
       icon: Receipt,
-      visible: isOrgAdmin || isSuperAdmin,
+      visible: !isEmployee,
     },
     {
       href: "/dashboard/reports",
       label: "Reports",
-      icon: BarChart3,
-      visible: isOrgAdmin || isSuperAdmin,
+      icon: Mail,
+      visible: isOrgAdmin || isClientAdmin,
     },
     {
       href: "/dashboard/notifications",
@@ -109,19 +118,13 @@ export function AppSidebar() {
       visible: true,
     },
     {
-      href: "/dashboard/feedback",
-      label: "Feedback",
-      icon: Mail,
-      visible: true,
-    },
-    {
       href: "/dashboard/plans",
       label: "Subscription",
       icon: Container,
-      visible: isOrgAdmin || isSuperAdmin,
+      visible: isSuperAdmin || isOrgAdmin,
     },
     {
-      href: "/dashboard/general",
+      href: "/dashboard/settings",
       label: "Settings",
       icon: Settings,
       visible: true,
@@ -133,8 +136,9 @@ export function AppSidebar() {
       visible: true,
     },
   ].filter((item) => item.visible);
+
   return (
-    <Sidebar className=" h-screen  w-64 border-r bg-white z-40 mt-22 ml-8">
+    <Sidebar className="h-screen w-64 border-r bg-white z-40 mt-22 ml-8">
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
@@ -142,7 +146,7 @@ export function AppSidebar() {
             <SidebarMenu className="flex flex-col gap-3">
               {navItems.map((item) => (
                 <SidebarMenuItem
-                  key={item.label}
+                  key={item.href}
                   className="w-full flex items-center"
                 >
                   <SidebarMenuButton asChild>

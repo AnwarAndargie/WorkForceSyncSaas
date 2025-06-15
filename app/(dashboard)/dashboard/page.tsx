@@ -3,292 +3,156 @@
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 import {
+  BarChart3,
   Users,
-  Building,
-  Briefcase,
-  Calendar,
-  Receipt,
-  AlertCircle,
-  CheckCircle2,
-  Clock,
+  DollarSign,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-import { Badge } from "@/components/ui/badge";
+interface StatCardProps {
+  title: string;
+  value: string;
+  description: string;
+  icon: React.ReactNode;
+  trend: "up" | "down" | "neutral";
+  percentage: string;
+}
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+function StatCard({
+  title,
+  value,
+  description,
+  icon,
+  trend,
+  percentage,
+}: StatCardProps) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <div className="h-8 w-8 rounded-full bg-orange-100 p-1.5 text-orange-600">
+          {icon}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        <p className="text-xs text-muted-foreground">{description}</p>
+        <div className="mt-2 flex items-center">
+          {trend === "up" ? (
+            <ArrowUpRight className="mr-1 h-4 w-4 text-green-600" />
+          ) : trend === "down" ? (
+            <ArrowDownRight className="mr-1 h-4 w-4 text-red-600" />
+          ) : null}
+          <span
+            className={
+              trend === "up"
+                ? "text-green-600"
+                : trend === "down"
+                  ? "text-red-600"
+                  : ""
+            }
+          >
+            {percentage}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function DashboardPage() {
-  
-
-  // Mock data for dashboard metrics
-  const dashboardMetrics = {
-    totalClients: 24,
-    activeContracts: 18,
-    pendingInvoices: 7,
-    totalEmployees: 32,
-    activeAssignments: 45,
-    completedAssignments: 178,
-    missedShifts: 3,
-    upcomingShifts: 12,
-  };
-
-  const user = {
-    name: "Anwar",
-    role: "super_admin",
-  };
-  const isSuperAdmin = user.role === "super_admin";
-  const isOrgAdmin = user.role === "org_admin";
-  const isMember = user.role === "member";
-
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          Welcome back, {user.name}
-        </h1>
+        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
         <p className="text-muted-foreground">
-          Here's what's happening with your workforce today.
+          Here's an overview of your business metrics
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {(isOrgAdmin || isSuperAdmin) && (
-          <>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium">
-                  Total Clients
-                </CardTitle>
-                <Building className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {dashboardMetrics.totalClients}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  +2 this month
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium">
-                  Active Contracts
-                </CardTitle>
-                <Briefcase className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {dashboardMetrics.activeContracts}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  3 renewing soon
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium">
-                  Pending Invoices
-                </CardTitle>
-                <Receipt className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {dashboardMetrics.pendingInvoices}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  $12,450 total
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-medium">
-                  Total Employees
-                </CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {dashboardMetrics.totalEmployees}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  +5 this quarter
-                </p>
-              </CardContent>
-            </Card>
-          </>
-        )}
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">
-              Active Assignments
-            </CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {dashboardMetrics.activeAssignments}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Across {isMember ? "3 clients" : "8 branches"}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Completed</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {dashboardMetrics.completedAssignments}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Last 30 days</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Missed Shifts</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {dashboardMetrics.missedShifts}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Last 7 days</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">
-              Upcoming Shifts
-            </CardTitle>
-            <Clock className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {dashboardMetrics.upcomingShifts}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Next 48 hours</p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total Revenue"
+          value="$45,231.89"
+          description="Monthly revenue"
+          icon={<DollarSign className="h-5 w-5" />}
+          trend="up"
+          percentage="+20.1% from last month"
+        />
+        <StatCard
+          title="Active Users"
+          value="2,350"
+          description="Monthly active users"
+          icon={<Users className="h-5 w-5" />}
+          trend="up"
+          percentage="+10.3% from last month"
+        />
+        <StatCard
+          title="New Customers"
+          value="573"
+          description="New this month"
+          icon={<Users className="h-5 w-5" />}
+          trend="down"
+          percentage="-2.5% from last month"
+        />
+        <StatCard
+          title="Conversion Rate"
+          value="3.2%"
+          description="Visitors to customers"
+          icon={<BarChart3 className="h-5 w-5" />}
+          trend="up"
+          percentage="+4.1% from last month"
+        />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="col-span-1">
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>
-              Your latest assignments and updates
-            </CardDescription>
+            <CardTitle>Revenue Over Time</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-start gap-4 rounded-lg border p-3">
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    New assignment at ABC Corporation
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Cleaning service - Main Branch
-                  </p>
-                </div>
-                <div className="text-xs text-muted-foreground">1 hour ago</div>
-              </div>
-              <div className="flex items-start gap-4 rounded-lg border p-3">
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    Shift completed at XYZ Industries
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Security service - Downtown Office
-                  </p>
-                </div>
-                <div className="text-xs text-muted-foreground">Yesterday</div>
-              </div>
-              <div className="flex items-start gap-4 rounded-lg border p-3">
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    Client feedback received
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    ⭐⭐⭐⭐⭐ for Maintenance service
-                  </p>
-                </div>
-                <div className="text-xs text-muted-foreground">2 days ago</div>
-              </div>
+          <CardContent className="h-80">
+            <div className="h-full w-full rounded-md border border-dashed border-gray-300 flex items-center justify-center">
+              <p className="text-sm text-gray-500">Revenue Chart Placeholder</p>
             </div>
           </CardContent>
         </Card>
-
-        <Card>
+        <Card className="col-span-1">
           <CardHeader>
-            <CardTitle>Important Notifications</CardTitle>
-            <CardDescription>
-              Alerts and updates requiring attention
-            </CardDescription>
+            <CardTitle>Recent Customers</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-start gap-4 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 p-3">
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    Contract renewal required
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Global Tech Services - Expires in 7 days
-                  </p>
+              {[
+                "John Doe",
+                "Jane Smith",
+                "Robert Johnson",
+                "Emily Davis",
+                "Michael Wilson",
+              ].map((name, i) => (
+                <div key={i} className="flex items-center space-x-3">
+                  <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                    <span className="text-sm font-medium text-gray-600">
+                      {name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{name}</p>
+                    <p className="text-xs text-gray-500">
+                      Joined {i + 1} day{i !== 0 ? "s" : ""} ago
+                    </p>
+                  </div>
                 </div>
-                <Badge
-                  variant="outline"
-                  className="border-amber-500 text-amber-500"
-                >
-                  Upcoming
-                </Badge>
-              </div>
-              <div className="flex items-start gap-4 rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 p-3">
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Missed shift report</p>
-                  <p className="text-xs text-muted-foreground">
-                    Security detail at First Bank - May 15, 2023
-                  </p>
-                </div>
-                <Badge
-                  variant="outline"
-                  className="border-red-500 text-red-500"
-                >
-                  Urgent
-                </Badge>
-              </div>
-              <div className="flex items-start gap-4 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-900/20 p-3">
-                <div className="flex-1">
-                  <p className="text-sm font-medium">New client onboarding</p>
-                  <p className="text-xs text-muted-foreground">
-                    Pending approvals for Metro Office Solutions
-                  </p>
-                </div>
-                <Badge
-                  variant="outline"
-                  className="border-blue-500 text-blue-500"
-                >
-                  New
-                </Badge>
-              </div>
+              ))}
             </div>
           </CardContent>
         </Card>
