@@ -260,3 +260,4 @@ export type NewInvoice = typeof invoices.$inferInsert;
 
 export type Branch = typeof branches.$inferSelect;
 export type NewBranch = typeof branches.$inferInsert;
+export type Contract = typeof contracts.$inferInsert;
