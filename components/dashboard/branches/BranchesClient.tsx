@@ -95,7 +95,9 @@ export const columns: ColumnDef<Branch>[] = [
   {
     accessorKey: "supervisorId",
     header: "Supervisor",
-    cell: ({ row }) => <div>{row.getValue("supervisorId") || "Not assigned"}</div>,
+    cell: ({ row }) => (
+      <div>{row.getValue("supervisorId") || "Not assigned"}</div>
+    ),
   },
   {
     accessorKey: "createdAt",
@@ -158,8 +160,11 @@ export const columns: ColumnDef<Branch>[] = [
 
 export function BranchesClient() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    []
+  );
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
   const [data, setData] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,18 +175,20 @@ export function BranchesClient() {
     const fetchBranches = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/branches', {
-          credentials: 'include',
+        const response = await fetch("/api/branches", {
+          credentials: "include",
         });
-        
+
         if (!response.ok) {
-          throw new Error('Failed to fetch branches');
+          throw new Error("Failed to fetch branches");
         }
-        
+
         const branchesData = await response.json();
         setData(branchesData);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load branches');
+        setError(
+          err instanceof Error ? err.message : "Failed to load branches"
+        );
       } finally {
         setLoading(false);
       }
