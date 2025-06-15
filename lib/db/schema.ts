@@ -1,4 +1,3 @@
-import { integer } from "drizzle-orm/gel-core";
 import {
   mysqlTable,
   serial,
@@ -10,6 +9,7 @@ import {
   decimal,
   mysqlEnum,
   index,
+  int,
 } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable(
@@ -77,7 +77,7 @@ export const TenantMembers = mysqlTable(
     tenantId: varchar("tenant_id", { length: 128 })
       .notNull()
       .references(() => tenants.id, { onDelete: "cascade" }),
-    salary: integer("salary"),
+    salary: int("salary"),
   },
   (table) => ({
     tenantUserIndex: index("org_user_idx").on(table.tenantId, table.userId),
@@ -211,6 +211,7 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   price: decimal("price", { precision: 10, scale: 2 }),
   billingCycle: mysqlEnum("billing_cycle", ["monthly", "yearly"]),
   createdAt: datetime("created_at"),
+  isActive: boolean("is_active").default(true),
 });
 
 export const subscriptions = mysqlTable("subscriptions", {

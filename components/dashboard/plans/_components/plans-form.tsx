@@ -30,9 +30,8 @@ export function PlanForm({ plan }: PlanFormProps) {
     name: plan?.name || "",
     price: plan?.price ? plan.price.toString() : "",
     description: plan?.description || "",
-    features: plan?.features ? plan.features.join("\n") : "",
-    isActive: plan?.isActive !== undefined ? plan.isActive : true,
-    currency: plan?.currency || "usd",
+    billingCycle: plan?.billingCycle || "monthly",
+    isActive: plan?.isActive !== null ? plan?.isActive : true,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,22 +39,17 @@ export function PlanForm({ plan }: PlanFormProps) {
     setIsLoading(true);
 
     try {
-      // Format features array
-      const featuresArray = formData.features
-        .split("\n")
-        .map((item) => item.trim())
-        .filter((item) => item !== "");
-
       const requestData = {
         name: formData.name,
         price: parseInt(formData.price),
         description: formData.description,
-        features: featuresArray,
+        billingCycle: formData.billingCycle,
         isActive: formData.isActive,
-        currency: formData.currency,
       };
 
-      const url = plan ? `/api/plans/${plan.id}` : "/api/plans";
+      const url = plan
+        ? `/api/subscription-plans/${plan.id}`
+        : "/api/subscription-plans";
       const method = plan ? "PATCH" : "POST";
 
       const response = await fetch(url, {
@@ -65,6 +59,7 @@ export function PlanForm({ plan }: PlanFormProps) {
         },
         body: JSON.stringify(requestData),
       });
+      console.log(requestData);
 
       if (!response.ok) {
         throw new Error("Failed to save plan");
@@ -121,7 +116,7 @@ export function PlanForm({ plan }: PlanFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="price">Price (in cents)</Label>
+            <Label htmlFor="price">Price (in birr)</Label>
             <Input
               id="price"
               name="price"
@@ -147,36 +142,16 @@ export function PlanForm({ plan }: PlanFormProps) {
               rows={3}
             />
           </div>
-
           <div className="space-y-2">
-            <Label htmlFor="features">Features</Label>
+            <Label htmlFor="billling cycle">Billing Cycle</Label>
             <Textarea
-              id="features"
-              name="features"
-              placeholder="Enter one feature per line"
-              value={formData.features}
+              id="billing clycle"
+              name="billing cycle"
+              placeholder="Billing cycle of the plan"
+              value={formData.billingCycle}
               onChange={handleChange}
-              rows={5}
+              rows={3}
             />
-            <p className="text-sm text-gray-500">
-              Enter one feature per line, e.g., "10 team members" or "Unlimited
-              storage"
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="currency">Currency</Label>
-            <Input
-              id="currency"
-              name="currency"
-              placeholder="usd"
-              value={formData.currency}
-              onChange={handleChange}
-              required
-            />
-            <p className="text-sm text-gray-500">
-              Three-letter ISO currency code, e.g., usd, eur
-            </p>
           </div>
 
           <div className="flex items-center space-x-2">
@@ -184,6 +159,7 @@ export function PlanForm({ plan }: PlanFormProps) {
               id="isActive"
               checked={formData.isActive}
               onCheckedChange={handleSwitchChange}
+              className="text-orange-600"
             />
             <Label htmlFor="isActive">Active</Label>
           </div>
@@ -196,7 +172,11 @@ export function PlanForm({ plan }: PlanFormProps) {
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={isLoading}>
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="bg-orange-600 hover:bg-orange-700"
+          >
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

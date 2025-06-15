@@ -13,10 +13,6 @@ import { eq, desc, like, and, sql } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth/session";
 import { canPerformWriteOperation } from "@/lib/auth/authorization";
 
-/**
- * GET /api/subscription-plans
- * List subscription plans with pagination and search (with auth)
- */
 export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser(request);
@@ -32,7 +28,7 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     const conditions = [];
-    
+
     if (search) {
       conditions.push(like(subscriptionPlans.name, `%${search}%`));
     }
@@ -40,7 +36,7 @@ export async function GET(request: NextRequest) {
     if (billingCycle) {
       conditions.push(like(subscriptionPlans.billingCycle, billingCycle));
     }
-    
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const plansList = await db
@@ -63,10 +59,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * POST /api/subscription-plans
- * Create a new subscription plan (with auth - super_admin only)
- */
 export async function POST(request: NextRequest) {
   try {
     const user = await getSessionUser(request);
@@ -74,18 +66,26 @@ export async function POST(request: NextRequest) {
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    // Only super_admin can create subscription plans
     if (user.role !== "super_admin") {
-      return createErrorResponse("Forbidden: Only super admins can create subscription plans", 403, "FORBIDDEN");
+      return createErrorResponse(
+        "Forbidden: Only super admins can create subscription plans",
+        403,
+        "FORBIDDEN"
+      );
     }
 
     const body = await request.json();
-    const validationError = validateRequiredFields(body, ["name", "price", "billingCycle"]);
+    const validationError = validateRequiredFields(body, [
+      "name",
+      "price",
+      "billingCycle",
+      "isActive",
+    ]);
     if (validationError) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
 
-    const { name, description, price, billingCycle } = body;
+    const { name, description, price, billingCycle, isActive } = body;
 
     const newPlan = {
       id: generateId("plan"),
@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
       description: description || null,
       price: price.toString(),
       billingCycle,
+      isActive,
       createdAt: new Date(),
     };
 
@@ -102,4 +103,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleDatabaseError(error);
   }
-} 
+}
