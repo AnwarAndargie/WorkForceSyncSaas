@@ -8,31 +8,32 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import {
-  BarChart3,
+  Building2,
   Users,
   DollarSign,
-  ArrowUpRight,
-  ArrowDownRight,
+  Briefcase,
+  UserPlus,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import useSWR from "swr";
+import { SessionUser } from "@/lib/auth/types";
+import Link from "next/link";
+
+const fetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error(`Fetch error: ${res.status}`);
+    return res.json();
+  });
 
 interface StatCardProps {
   title: string;
-  value: string;
+  value: number | string;
   description: string;
   icon: React.ReactNode;
-  trend: "up" | "down" | "neutral";
-  percentage: string;
 }
 
-function StatCard({
-  title,
-  value,
-  description,
-  icon,
-  trend,
-  percentage,
-}: StatCardProps) {
+function StatCard({ title, value, description, icon }: StatCardProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -44,116 +45,147 @@ function StatCard({
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
         <p className="text-xs text-muted-foreground">{description}</p>
-        <div className="mt-2 flex items-center">
-          {trend === "up" ? (
-            <ArrowUpRight className="mr-1 h-4 w-4 text-green-600" />
-          ) : trend === "down" ? (
-            <ArrowDownRight className="mr-1 h-4 w-4 text-red-600" />
-          ) : null}
-          <span
-            className={
-              trend === "up"
-                ? "text-green-600"
-                : trend === "down"
-                  ? "text-red-600"
-                  : ""
-            }
-          >
-            {percentage}
-          </span>
-        </div>
       </CardContent>
     </Card>
   );
 }
 
+interface DashboardMetrics {
+  tenants?: number;
+  clients?: number;
+  revenue?: string;
+  employees?: number;
+  supervisors?: number;
+  branches?: number;
+}
+
 export default function DashboardPage() {
+  const { data: user, error: userError } = useSWR<SessionUser>(
+    "/api/user",
+    fetcher
+  );
+  const { data: metrics, error: metricsError } = useSWR<DashboardMetrics>(
+    "/api/dashboard-metrics",
+    fetcher
+  );
+
+  if (userError || metricsError) {
+    return (
+      <div className="container mx-auto py-10">Error loading dashboard</div>
+    );
+  }
+
+  if (!user || !metrics) {
+    return (
+      <div className="flex items-center justify-center h-64 w-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto py-10 space-y-6">
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
         <p className="text-muted-foreground">
-          Here's an overview of your business metrics
+          Overview of your business metrics
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Revenue"
-          value="$45,231.89"
-          description="Monthly revenue"
-          icon={<DollarSign className="h-5 w-5" />}
-          trend="up"
-          percentage="+20.1% from last month"
-        />
-        <StatCard
-          title="Active Users"
-          value="2,350"
-          description="Monthly active users"
-          icon={<Users className="h-5 w-5" />}
-          trend="up"
-          percentage="+10.3% from last month"
-        />
-        <StatCard
-          title="New Customers"
-          value="573"
-          description="New this month"
-          icon={<Users className="h-5 w-5" />}
-          trend="down"
-          percentage="-2.5% from last month"
-        />
-        <StatCard
-          title="Conversion Rate"
-          value="3.2%"
-          description="Visitors to customers"
-          icon={<BarChart3 className="h-5 w-5" />}
-          trend="up"
-          percentage="+4.1% from last month"
-        />
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {user.role === "super_admin" && (
+          <>
+            <StatCard
+              title="Tenants"
+              value={metrics.tenants || 0}
+              description="Total companies"
+              icon={<Building2 className="h-5 w-5" />}
+            />
+            <StatCard
+              title="Clients"
+              value={metrics.clients || 0}
+              description="Total clients"
+              icon={<Users className="h-5 w-5" />}
+            />
+            <StatCard
+              title="Total Revenue"
+              value={metrics.revenue || "$0"}
+              description="Monthly revenue"
+              icon={<DollarSign className="h-5 w-5" />}
+            />
+          </>
+        )}
+        {user.role === "tenant_admin" && (
+          <>
+            <StatCard
+              title="Clients"
+              value={metrics.clients || 0}
+              description="Active clients"
+              icon={<Users className="h-5 w-5" />}
+            />
+            <StatCard
+              title="Employees"
+              value={metrics.employees || 0}
+              description="Total employees"
+              icon={<UserPlus className="h-5 w-5" />}
+            />
+            <StatCard
+              title="Supervisors"
+              value={metrics.supervisors || 0}
+              description="Active supervisors"
+              icon={<Briefcase className="h-5 w-5" />}
+            />
+          </>
+        )}
+        {user.role === "client_admin" && (
+          <StatCard
+            title="Branches"
+            value={metrics.branches || 0}
+            description="Total branches"
+            icon={<Building2 className="h-5 w-5" />}
+          />
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card className="col-span-1">
+        <Card>
           <CardHeader>
-            <CardTitle>Revenue Over Time</CardTitle>
+            <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
-          <CardContent className="h-80">
-            <div className="h-full w-full rounded-md border border-dashed border-gray-300 flex items-center justify-center">
-              <p className="text-sm text-gray-500">Revenue Chart Placeholder</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Recent Customers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[
-                "John Doe",
-                "Jane Smith",
-                "Robert Johnson",
-                "Emily Davis",
-                "Michael Wilson",
-              ].map((name, i) => (
-                <div key={i} className="flex items-center space-x-3">
-                  <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                    <span className="text-sm font-medium text-gray-600">
-                      {name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{name}</p>
-                    <p className="text-xs text-gray-500">
-                      Joined {i + 1} day{i !== 0 ? "s" : ""} ago
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <CardContent className="space-y-2">
+            {user.role === "super_admin" && (
+              <>
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/dashboards/plans/new">Create Plans</Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/dashboard/reports">View Contracts</Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/dashboard/companies">Manage Companies</Link>
+                </Button>
+              </>
+            )}
+            {user.role === "tenant_admin" && (
+              <>
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/dashboard/clients/new">Add Client</Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/dashboard/contracts">Manage Contracts</Link>
+                </Button>
+              </>
+            )}
+            {user.role === "client_admin" && (
+              <>
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/dashboard/contracts/new">Make a Contract</Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/dashboard/branches/new">Add Branch</Link>
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
