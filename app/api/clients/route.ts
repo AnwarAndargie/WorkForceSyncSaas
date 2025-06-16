@@ -29,24 +29,34 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search");
     const offset = (page - 1) * limit;
 
-    // Determine tenant access based on user role
     let tenantId: string;
-    
+
     if (sessionUser.role === "super_admin") {
       // Super admin can specify which tenant's clients to view
       const requestedTenantId = searchParams.get("tenantId");
       if (!requestedTenantId) {
-        return createErrorResponse("tenantId required for super_admin", 400, "TENANT_ID_REQUIRED");
+        return createErrorResponse(
+          "tenantId required for super_admin",
+          400,
+          "TENANT_ID_REQUIRED"
+        );
       }
       tenantId = requestedTenantId;
     } else if (sessionUser.role === "tenant_admin") {
-      // Tenant admin can only see their own tenant's clients
       if (!sessionUser.tenantId) {
-        return createErrorResponse("User not associated with a tenant", 403, "NO_TENANT_ACCESS");
+        return createErrorResponse(
+          "User not associated with a tenant",
+          403,
+          "NO_TENANT_ACCESS"
+        );
       }
       tenantId = sessionUser.tenantId;
     } else {
-      return createErrorResponse("Insufficient permissions", 403, "INSUFFICIENT_PERMISSIONS");
+      return createErrorResponse(
+        "Insufficient permissions",
+        403,
+        "INSUFFICIENT_PERMISSIONS"
+      );
     }
 
     const conditions = [eq(clients.tenantId, tenantId)];
@@ -96,22 +106,34 @@ export async function POST(request: NextRequest) {
 
     // Determine tenant access based on user role
     let tenantId: string;
-    
+
     if (sessionUser.role === "super_admin") {
       // Super admin can specify which tenant to create client for
       const requestedTenantId = body.tenantId;
       if (!requestedTenantId) {
-        return createErrorResponse("tenantId required for super_admin", 400, "TENANT_ID_REQUIRED");
+        return createErrorResponse(
+          "tenantId required for super_admin",
+          400,
+          "TENANT_ID_REQUIRED"
+        );
       }
       tenantId = requestedTenantId;
     } else if (sessionUser.role === "tenant_admin") {
       // Tenant admin can only create clients for their own tenant
       if (!sessionUser.tenantId) {
-        return createErrorResponse("User not associated with a tenant", 403, "NO_TENANT_ACCESS");
+        return createErrorResponse(
+          "User not associated with a tenant",
+          403,
+          "NO_TENANT_ACCESS"
+        );
       }
       tenantId = sessionUser.tenantId;
     } else {
-      return createErrorResponse("Insufficient permissions", 403, "INSUFFICIENT_PERMISSIONS");
+      return createErrorResponse(
+        "Insufficient permissions",
+        403,
+        "INSUFFICIENT_PERMISSIONS"
+      );
     }
 
     // Verify tenant exists
@@ -134,11 +156,19 @@ export async function POST(request: NextRequest) {
         .limit(1);
 
       if (adminUser.length === 0) {
-        return createErrorResponse("Admin user not found", 404, "ADMIN_NOT_FOUND");
+        return createErrorResponse(
+          "Admin user not found",
+          404,
+          "ADMIN_NOT_FOUND"
+        );
       }
 
       if (adminUser[0].role !== "client_admin") {
-        return createErrorResponse("User must have client_admin role", 400, "INVALID_ADMIN_ROLE");
+        return createErrorResponse(
+          "User must have client_admin role",
+          400,
+          "INVALID_ADMIN_ROLE"
+        );
       }
     }
 
@@ -163,4 +193,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleDatabaseError(error);
   }
-} 
+}

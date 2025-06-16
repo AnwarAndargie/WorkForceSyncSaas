@@ -2,18 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect } from "react";
-import {
-  ColumnDef,
-  ColumnFiltersState,
-  SortingState,
-  VisibilityState,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from "@tanstack/react-table";
+import { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown, ChevronDown, MoreHorizontal } from "lucide-react";
 import { DataTable as ClientTable } from "@/components/ui/data-table";
 
@@ -201,9 +190,9 @@ export function ClientPage() {
 
   if (error) {
     return (
-      <Alert variant="destructive">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <p className="text-red-400 text-center">
+        there was an error: {error.message}
+      </p>
     );
   }
 

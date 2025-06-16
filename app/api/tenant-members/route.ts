@@ -15,17 +15,13 @@ import {
   createPaginationMeta,
 } from "@/lib/api/response";
 import { generateId } from "@/lib/db/utils";
-import { eq, desc, like, and, sql } from "drizzle-orm";
+import { eq, or, like, and, sql } from "drizzle-orm";
 import { getSessionUser, hashPassword } from "@/lib/auth/session";
 import {
   canPerformWriteOperation,
   checkTenantAccess,
 } from "@/lib/auth/authorization";
 
-/**
- * GET /api/tenant-members
- * List tenant members with pagination and search (with auth)
- */
 export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser(request);
@@ -36,7 +32,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 100);
-    const search = searchParams.get("search");
+    const search = searchParams.get("search") || "";
     const tenantId = searchParams.get("tenantId");
     const offset = (page - 1) * limit;
 
@@ -44,19 +40,27 @@ export async function GET(request: NextRequest) {
 
     // Apply role-based filtering
     if (user.role === "super_admin") {
-      // Super admin can see all members, optionally filtered by tenantId
       if (tenantId) {
-        const hasAccess = await checkTenantAccess(user, tenantId);
-        if (!hasAccess) {
-          return createErrorResponse("Forbidden", 403, "FORBIDDEN");
-        }
         conditions.push(eq(TenantMembers.tenantId, tenantId));
       }
     } else if (user.role === "tenant_admin") {
-      // Tenant admin can only see members in their tenant
+      if (!user.tenantId) {
+        return createErrorResponse("No tenant access", 403, "NO_TENANT_ACCESS");
+      }
       conditions.push(eq(TenantMembers.tenantId, user.tenantId));
     } else {
       return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    }
+
+    // Add search filter
+    if (search) {
+      conditions.push(
+        or(
+          like(users.name, `%${search}%`),
+          like(users.email, `%${search}%`),
+          like(users.phone_number, `%${search}%`)
+        )
+      );
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -98,10 +102,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * POST /api/tenant-members
- * Add a new member to a tenant (with auth)
- */
 export async function POST(request: NextRequest) {
   try {
     const user = await getSessionUser(request);
@@ -118,13 +118,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const validationError = validateRequiredFields(body, ["tenantId"]);
+    const validationError = validateRequiredFields(body, [
+      "tenantId",
+      "name",
+      "email",
+      "salary",
+      "phone_number",
+    ]);
     if (validationError) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
 
-    const { tenantId, salary, branchId, name, email, address, phone_number } =
-      body;
+    const { tenantId, salary, branchId, name, email, phone_number } = body;
+
+    // Validate salary
+    if (isNaN(salary) || salary < 0) {
+      return createErrorResponse("Invalid salary", 400, "INVALID_SALARY");
+    }
 
     // Check if user can access this tenant
     const hasAccess = await checkTenantAccess(user, tenantId);
@@ -136,13 +146,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verify tenant exists
+    const tenant = await db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1);
+    if (tenant.length === 0) {
+      return createErrorResponse("Tenant not found", 404, "TENANT_NOT_FOUND");
+    }
+
+    // Verify branch exists if provided
+    if (branchId) {
+      const branch = await db
+        .select()
+        .from(branches)
+        .where(eq(branches.id, branchId))
+        .limit(1);
+      if (branch.length === 0) {
+        return createErrorResponse("Branch not found", 404, "BRANCH_NOT_FOUND");
+      }
+    }
+
     // Verify user exists
-    let existingUser = await db
+    const existingUser = await db
       .select()
       .from(users)
       .where(eq(users.email, email))
       .limit(1);
-
     if (existingUser.length > 0) {
       const isAlreadyMember = await db
         .select()
@@ -154,7 +185,6 @@ export async function POST(request: NextRequest) {
           )
         )
         .limit(1);
-
       if (isAlreadyMember.length > 0) {
         return createErrorResponse(
           "User is already a member of this tenant",
@@ -162,7 +192,6 @@ export async function POST(request: NextRequest) {
           "MEMBER_EXISTS"
         );
       }
-
       return createErrorResponse(
         "User already exists but not in this tenant. Consider inviting.",
         400,
@@ -170,53 +199,64 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify tenant exists
-    const tenant = await db
-      .select()
-      .from(tenants)
-      .where(eq(tenants.id, tenantId))
-      .limit(1);
-
-    if (tenant.length === 0) {
-      return createErrorResponse("Tenant not found", 404, "TENANT_NOT_FOUND");
-    }
-
-    const userId = generateId("employee");
-
-    const newTenantMember = {
-      id: userId,
-      userId,
-      tenantId,
-      salary,
-    };
+    // Create new user and tenant member
+    const userId = generateId("user");
+    const memberId = generateId("member");
 
     const newUser = {
       id: userId,
       name,
       email,
       role: "employee",
-      password_hash: await hashPassword("abc1234"),
-      created_at: Date.now(),
+      passwordHash: await hashPassword("abc1234"),
+      createdAt: new Date(),
       phone_number,
     };
 
-    await db.insert(TenantMembers).values(newTenantMember);
-    await db.insert(users).values(newUser);
+    const newTenantMember = {
+      id: memberId,
+      userId,
+      tenantId,
+      salary,
+    };
 
-    // Return the created member with joined data
+    // Insert user and tenant member
+    await db.transaction(async (tx) => {
+      await tx.insert(users).values(newUser);
+      await tx.insert(TenantMembers).values(newTenantMember);
+      if (branchId) {
+        await tx.insert(employeeBranches).values({
+          id: generateId("emp_branch"),
+          employeeId: userId,
+          branchId,
+          assignedAt: new Date(),
+        });
+      }
+    });
+
+    // Return created member
     const createdMember = await db
       .select({
         id: TenantMembers.id,
         userId: TenantMembers.userId,
         tenantId: TenantMembers.tenantId,
+        branchId: employeeBranches.branchId,
+        branchName: branches.name,
         userName: users.name,
         userEmail: users.email,
+        userPhone: users.phone_number,
         tenantName: tenants.name,
+        salary: TenantMembers.salary,
       })
       .from(TenantMembers)
       .leftJoin(users, eq(TenantMembers.userId, users.id))
       .leftJoin(tenants, eq(TenantMembers.tenantId, tenants.id))
-      .where(eq(TenantMembers.id, newTenantMember.id))
+      .leftJoin(
+        employeeBranches,
+        eq(TenantMembers.userId, employeeBranches.employeeId)
+      )
+      .leftJoin(branches, eq(employeeBranches.branchId, branches.id))
+      .where(eq(TenantMembers.id, memberId))
       .limit(1);
 
     return createSuccessResponse(createdMember[0], 201);

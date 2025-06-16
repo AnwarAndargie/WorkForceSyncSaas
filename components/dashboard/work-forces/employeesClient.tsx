@@ -213,20 +213,17 @@ export function WorkForceClient() {
   console.log(employees);
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-10">
-        <Loader2 className="h-12 w-12 animate-spin text-orange-600" />
-        <span className="ml-2">Loading employees...</span>
+      <div className="flex items-center justify-center h-64 w-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <Alert variant="destructive">
-        <AlertDescription>
-          <p>{error}</p>
-        </AlertDescription>
-      </Alert>
+      <p className="text-red-400 text-center">
+        An Error occured: {error.message} employees
+      </p>
     );
   }
 
