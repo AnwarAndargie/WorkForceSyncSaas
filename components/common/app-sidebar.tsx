@@ -71,8 +71,8 @@ export function AppSidebar({ user }: { user: SessionUser }) {
     },
     {
       href: "/dashboard/work-forces",
-      label: "Workforce",
-      icon: Users,
+      label: "Employees",
+      icon: Users2,
       visible: isOrgAdmin,
     },
     {

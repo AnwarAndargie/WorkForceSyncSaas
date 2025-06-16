@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { clients, tenants, users } from "@/lib/db/schema";
+import { clients, tenants, users, TenantMembers } from "@/lib/db/schema";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -32,7 +32,6 @@ export async function GET(request: NextRequest) {
     let tenantId: string;
 
     if (sessionUser.role === "super_admin") {
-      // Super admin can specify which tenant's clients to view
       const requestedTenantId = searchParams.get("tenantId");
       if (!requestedTenantId) {
         return createErrorResponse(
@@ -66,10 +65,16 @@ export async function GET(request: NextRequest) {
     const whereClause = and(...conditions);
 
     const clientList = await db
-      .select()
+      .select({
+        id: clients.id,
+        name: clients.name,
+        phone: clients.phone,
+        address: clients.address,
+        adminId: clients.adminId,
+        tenantId: clients.tenantId,
+      })
       .from(clients)
       .where(whereClause)
-      .orderBy(desc(clients.id))
       .limit(limit)
       .offset(offset);
 
@@ -102,14 +107,11 @@ export async function POST(request: NextRequest) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
 
-    const { name, phone, address, adminId } = body;
+    const { name, phone, address, adminId, tenantId: requestedTenantId } = body;
 
-    // Determine tenant access based on user role
     let tenantId: string;
 
     if (sessionUser.role === "super_admin") {
-      // Super admin can specify which tenant to create client for
-      const requestedTenantId = body.tenantId;
       if (!requestedTenantId) {
         return createErrorResponse(
           "tenantId required for super_admin",
@@ -119,7 +121,6 @@ export async function POST(request: NextRequest) {
       }
       tenantId = requestedTenantId;
     } else if (sessionUser.role === "tenant_admin") {
-      // Tenant admin can only create clients for their own tenant
       if (!sessionUser.tenantId) {
         return createErrorResponse(
           "User not associated with a tenant",
@@ -128,6 +129,13 @@ export async function POST(request: NextRequest) {
         );
       }
       tenantId = sessionUser.tenantId;
+      if (requestedTenantId && requestedTenantId !== tenantId) {
+        return createErrorResponse(
+          "Cannot create client for another tenant",
+          403,
+          "INVALID_TENANT_ACCESS"
+        );
+      }
     } else {
       return createErrorResponse(
         "Insufficient permissions",
@@ -136,25 +144,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify tenant exists
     const tenant = await db
       .select()
       .from(tenants)
       .where(eq(tenants.id, tenantId))
       .limit(1);
-
     if (tenant.length === 0) {
       return createErrorResponse("Tenant not found", 404, "TENANT_NOT_FOUND");
     }
 
-    // If adminId is provided, verify the user exists and can be a client admin
+    // If adminId is provided, verify the user exists and is a client_admin
     if (adminId) {
       const adminUser = await db
         .select()
         .from(users)
         .where(eq(users.id, adminId))
         .limit(1);
-
       if (adminUser.length === 0) {
         return createErrorResponse(
           "Admin user not found",
@@ -162,7 +167,6 @@ export async function POST(request: NextRequest) {
           "ADMIN_NOT_FOUND"
         );
       }
-
       if (adminUser[0].role !== "client_admin") {
         return createErrorResponse(
           "User must have client_admin role",
@@ -172,7 +176,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create the client
+    const existingClient = await db
+      .select()
+      .from(clients)
+      .where(and(eq(clients.tenantId, tenantId), eq(clients.name, name)))
+      .limit(1);
+    if (existingClient.length > 0) {
+      return createErrorResponse(
+        "Client name already exists",
+        400,
+        "DUPLICATE_CLIENT_NAME"
+      );
+    }
+
     const clientId = generateId("client");
     await db.insert(clients).values({
       id: clientId,
@@ -183,13 +199,13 @@ export async function POST(request: NextRequest) {
       tenantId,
     });
 
-    const createdClient = await db
+    const [createdClient] = await db
       .select()
       .from(clients)
       .where(eq(clients.id, clientId))
       .limit(1);
 
-    return createSuccessResponse(createdClient[0], 201);
+    return createSuccessResponse(createdClient, 201);
   } catch (error) {
     return handleDatabaseError(error);
   }

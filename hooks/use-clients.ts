@@ -1,5 +1,7 @@
-import useSWR, { mutate } from "swr";
+import { mutate } from "swr";
 import { useState, useCallback } from "react";
+import { useSession } from "./useSession";
+import useSWR from "swr";
 
 export interface Client {
   id: string;
@@ -38,20 +40,50 @@ interface UpdateClientData {
 }
 
 const fetcher = async (url: string) => {
-  const response = await fetch(url);
+  const response = await fetch(url, { credentials: "include" });
   if (!response.ok) {
-    throw new Error("Failed to fetch");
+    throw new Error(`Fetch error: ${response.status}`);
   }
-  return response.json();
+  const json = await response.json();
+  // Normalize to { success, data, meta }
+  return {
+    success: true,
+    data: Array.isArray(json) ? json : json.data || [],
+    meta: json.meta || undefined,
+  };
 };
 
-export function useClients(page = 1, limit = 10, search = "") {
+export function useClients(
+  page = 1,
+  limit = 10,
+  search = "",
+  tenantId?: string
+) {
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const { data: user } = useSession();
+
+  if (!tenantId && !user?.tenantId) {
+    return {
+      clients: [],
+      meta: undefined,
+      isLoading: false,
+      error: new Error("Tenant ID required"),
+      createClient: async () => Promise.reject(new Error("Tenant ID required")),
+      updateClient: async () => Promise.reject(new Error("Tenant ID required")),
+      deleteClient: async () => Promise.reject(new Error("Tenant ID required")),
+      isCreating: false,
+      isUpdating: false,
+      isDeleting: false,
+    };
+  }
+
+  const finalTenantId = tenantId || user?.tenantId;
 
   const params = new URLSearchParams({
     page: page.toString(),
+    tenantId: finalTenantId!,
     limit: limit.toString(),
     ...(search && { search }),
   });
@@ -71,12 +103,14 @@ export function useClients(page = 1, limit = 10, search = "") {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(clientData),
+          credentials: "include",
         });
 
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
-            errorData.error?.message || "Failed to create client"
+            errorData.error?.message ||
+              `Failed to create client: ${response.status}`
           );
         }
 
@@ -102,12 +136,14 @@ export function useClients(page = 1, limit = 10, search = "") {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(clientData),
+          credentials: "include",
         });
 
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
-            errorData.error?.message || "Failed to update client"
+            errorData.error?.message ||
+              `Failed to update client: ${response.status}`
           );
         }
 
@@ -129,12 +165,14 @@ export function useClients(page = 1, limit = 10, search = "") {
       try {
         const response = await fetch(`/api/clients/${id}`, {
           method: "DELETE",
+          credentials: "include",
         });
 
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
-            errorData.error?.message || "Failed to delete client"
+            errorData.error?.message ||
+              `Failed to delete client: ${response.status}`
           );
         }
 
