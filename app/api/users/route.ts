@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { users, TenantMembers } from "@/lib/db/schema";
+import { users } from "@/lib/db/schema";
 import { createSuccessResponse, createErrorResponse } from "@/lib/api/response";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth/session";
 
 export async function GET(request: NextRequest) {
@@ -12,32 +12,20 @@ export async function GET(request: NextRequest) {
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
+    // Restrict access to super_admin and tenant_admin
+    if (!["super_admin", "tenant_admin"].includes(sessionUser.role)) {
+      return createErrorResponse("Forbidden", 403, "INSUFFICIENT_PERMISSIONS");
+    }
+
     const { searchParams } = new URL(request.url);
-    const tenantId = searchParams.get("tenantId");
     const role = searchParams.get("role") as
       | "super_admin"
       | "client_admin"
       | "tenant_admin"
       | "employee";
 
-    if (!tenantId) {
-      return createErrorResponse(
-        "Tenant ID required",
-        400,
-        "MISSING_TENANT_ID"
-      );
-    }
-
-    if (
-      sessionUser.role !== "super_admin" &&
-      sessionUser.tenantId !== tenantId
-    ) {
-      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
-    }
-
-    const conditions = [eq(TenantMembers.tenantId, tenantId)];
-    if (role) {
-      conditions.push(eq(users.role, role));
+    if (!role) {
+      return createErrorResponse("Role required", 400, "MISSING_ROLE");
     }
 
     const userList = await db
@@ -46,8 +34,7 @@ export async function GET(request: NextRequest) {
         name: users.name,
       })
       .from(users)
-      .innerJoin(TenantMembers, eq(users.id, TenantMembers.userId))
-      .where(and(...conditions));
+      .where(eq(users.role, role));
 
     return createSuccessResponse(userList, 200);
   } catch (error) {

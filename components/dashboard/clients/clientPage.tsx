@@ -22,7 +22,13 @@ import { Trash, Pen, EyeIcon, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useClients } from "@/hooks/use-clients";
 import { ClientFormDialog } from "./clients-form-dialog";
-import { Plus } from "lucide-react";
+import { Plus, Eye } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export type Client = {
   id: string;
@@ -89,13 +95,23 @@ export const columns: ColumnDef<Client>[] = [
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Tenant
+          Branches
           <ArrowUpDown />
         </Button>
       );
     },
     cell: ({ row }) => (
-      <div className="lowercase">{row.getValue("tenantName") || "N/A"}</div>
+      <div className="items-center">
+        {" "}
+        <Tooltip>
+          <TooltipTrigger>
+            <Eye className="w-4 h-4 cursor-pointer" />
+          </TooltipTrigger>
+          <TooltipContent>
+            <p> view branches</p>
+          </TooltipContent>
+        </Tooltip>{" "}
+      </div>
     ),
   },
   {
@@ -181,9 +197,8 @@ export function ClientPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-10">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Loading clients...</span>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
       </div>
     );
   }

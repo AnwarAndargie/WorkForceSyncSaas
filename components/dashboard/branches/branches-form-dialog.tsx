@@ -21,25 +21,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { useClients, Client } from "@/hooks/use-clients";
+import { useBranches, Branch } from "@/hooks/use-branches";
 import { useSession } from "@/hooks/useSession";
 import useSWR from "swr";
 
-interface ClientFormDialogProps {
+interface BranchesFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  client?: Client | null;
+  branch?: Branch | null;
   mode: "create" | "edit";
 }
 
-interface Admin {
+interface Client {
   id: string;
   name: string;
-}
-
-interface AdminsResponse {
-  success: boolean;
-  data: Admin[];
 }
 
 const fetcher = async (url: string) => {
@@ -48,71 +43,55 @@ const fetcher = async (url: string) => {
     throw new Error(`Fetch error: ${response.status}`);
   }
   const json = await response.json();
-  return json.data || json; // Handle { success, data } or plain array
+  return Array.isArray(json) ? json : json.data || [];
 };
 
-export function ClientFormDialog({
+export function BranchesFormDialog({
   open,
   onOpenChange,
-  client,
+  branch,
   mode,
-}: ClientFormDialogProps) {
-  const { createClient, updateClient, isCreating, isUpdating } = useClients();
+}: BranchesFormDialogProps) {
+  const { createBranch, updateBranch, isCreating, isUpdating } = useBranches();
   const { data: user, isLoading: sessionLoading } = useSession();
+
   const {
-    data: adminsData,
-    error: adminsError,
-    isLoading: adminsLoading,
-  } = useSWR<Admin[] | Admin>(
-    user?.tenantId
-      ? `/api/users?tenantId=${user?.tenantId}&role=client_admin`
-      : null,
+    data: clientsData,
+    error: clientsError,
+    isLoading: clientsLoading,
+  } = useSWR<Client[]>(
+    user?.tenantId ? `/api/clients?tenantId=${user?.tenantId}` : null,
     fetcher
   );
 
-  console.log(adminsData);
-
   const [formData, setFormData] = React.useState({
     name: "",
-    phone: "",
     address: "",
-    adminId: "",
-    tenantId: "",
+    clientId: "",
   });
 
-  // Ensure admins is always an array
-  const admins = React.useMemo(() => {
-    if (!adminsData) return [];
-    return Array.isArray(adminsData) ? adminsData : [];
-  }, [adminsData]);
+  // Ensure clients are always an array
+  const clients = React.useMemo(() => {
+    return Array.isArray(clientsData) ? clientsData : [];
+  }, [clientsData]);
 
   React.useEffect(() => {
-    console.log(
-      "Admins Data:",
-      adminsData,
-      "Error:",
-      adminsError,
-      "Loading:",
-      adminsLoading
-    );
-    if (client && mode === "edit") {
+    if (branch && mode === "edit") {
       setFormData({
-        name: client.name || "",
-        phone: client.phone || "",
-        address: client.address || "",
-        adminId: client.adminId || "",
-        tenantId: client.tenantId || "",
+        name: branch.name || "",
+        address: branch.address || "",
+        clientId: branch.clientId || "",
       });
     } else {
       setFormData({
         name: "",
-        phone: "",
         address: "",
-        adminId: admins.length === 1 && !adminsLoading ? admins[0].id : "",
-        tenantId: user?.tenantId || "",
+        clientId:
+          user?.clientId ||
+          (clients.length === 1 && !clientsLoading ? clients[0].id : ""),
       });
     }
-  }, [client, mode, user?.tenantId, admins, adminsLoading]);
+  }, [branch, mode, user?.clientId, clients, clientsLoading]);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -125,25 +104,21 @@ export function ClientFormDialog({
     e.preventDefault();
 
     if (!formData.name.trim()) {
-      toast("Client name is required");
+      toast("Branch name is required");
       return;
     }
-    if (!formData.phone.trim()) {
-      toast("Client phone is required");
-      return;
-    }
-    if (!formData.tenantId) {
-      toast("Tenant ID is required");
+    if (!formData.clientId) {
+      toast("Client is required");
       return;
     }
 
     try {
       if (mode === "create") {
-        await createClient(formData);
-        toast("Client created successfully");
-      } else if (client) {
-        await updateClient(client.id, formData);
-        toast("Client updated successfully");
+        await createBranch(formData);
+        toast("Branch created successfully");
+      } else if (branch) {
+        await updateBranch(branch.id, formData);
+        toast("Branch updated successfully");
       }
       onOpenChange(false);
     } catch (error) {
@@ -151,7 +126,8 @@ export function ClientFormDialog({
     }
   };
 
-  const isLoading = isCreating || isUpdating || sessionLoading || adminsLoading;
+  const isLoading =
+    isCreating || isUpdating || sessionLoading || clientsLoading;
 
   if (sessionLoading) {
     return <div>Loading session...</div>;
@@ -166,12 +142,12 @@ export function ClientFormDialog({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>
-            {mode === "create" ? "Create New Client" : "Edit Client"}
+            {mode === "create" ? "Create New Branch" : "Edit Branch"}
           </DialogTitle>
           <DialogDescription>
             {mode === "create"
-              ? "Add a new client to your system."
-              : "Make changes to the client information."}
+              ? "Add a new branch to your system."
+              : "Make changes to the branch information."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -186,21 +162,7 @@ export function ClientFormDialog({
                 value={formData.name}
                 onChange={handleInputChange}
                 className="col-span-3"
-                placeholder="Client name"
-                required
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phone" className="text-right">
-                Phone *
-              </Label>
-              <Input
-                id="phone"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                className="col-span-3"
-                placeholder="+251 ** ** ** ** **"
+                placeholder="Branch name"
                 required
               />
             </div>
@@ -214,37 +176,39 @@ export function ClientFormDialog({
                 value={formData.address}
                 onChange={handleInputChange}
                 className="col-span-3"
-                placeholder="Client address"
+                placeholder="Branch address"
                 rows={3}
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="adminId" className="text-right">
-                Admin
+              <Label htmlFor="clientId" className="text-right">
+                Client *
               </Label>
               <Select
-                value={formData.adminId}
+                value={formData.clientId}
                 onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, adminId: value }))
+                  setFormData((prev) => ({ ...prev, clientId: value }))
                 }
-                name="adminId"
-                disabled={admins.length === 0 || adminsError || adminsLoading}
+                name="clientId"
+                disabled={
+                  clients.length === 0 || clientsError || clientsLoading
+                }
               >
-                <SelectTrigger className="col-span-3" id="adminId">
+                <SelectTrigger className="col-span-3" id="clientId">
                   <SelectValue
                     placeholder={
-                      adminsLoading
-                        ? "Loading admins..."
-                        : admins.length === 0
-                          ? "No admins available"
-                          : "Select an admin"
+                      clientsLoading
+                        ? "Loading clients..."
+                        : clients.length === 0
+                          ? "No clients available"
+                          : "Select a client"
                     }
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {admins.map((admin) => (
-                    <SelectItem key={admin.id} value={admin.id}>
-                      {admin.name}
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -260,16 +224,16 @@ export function ClientFormDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || adminsError}>
+            <Button type="submit" disabled={isLoading || clientsError}>
               {isLoading ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
                   {mode === "create" ? "Creating..." : "Updating..."}
                 </>
               ) : mode === "create" ? (
-                "Create Client"
+                "Create Branch"
               ) : (
-                "Update Client"
+                "Update Branch"
               )}
             </Button>
           </DialogFooter>

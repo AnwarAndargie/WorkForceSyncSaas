@@ -1,12 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import {
-  branches,
-  clients,
-  users,
-  tenants,
-  TenantMembers,
-} from "@/lib/db/schema";
+import { branches, tenants, clients, users } from "@/lib/db/schema";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -28,58 +22,58 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 100);
-    const search = searchParams.get("search")?.trim().slice(0, 100);
-    const offset = (page - 1) * limit;
-    const requestedTenantId = searchParams.get("tenantId");
+    const search = searchParams.get("search");
     const clientId = searchParams.get("clientId");
+    const offset = (page - 1) * limit;
 
-    let whereConditions: any[] = [];
+    let tenantId: string | undefined;
+    let allowedClientId: string | undefined;
 
-    if (sessionUser.role === "super_admin") {
-      if (!requestedTenantId && !clientId) {
+    if (sessionUser.role === "client_admin") {
+      if (!sessionUser.clientId) {
         return createErrorResponse(
-          "tenantId or clientId required for super_admin",
-          400,
-          "FILTER_REQUIRED"
+          "User not associated with a client",
+          403,
+          "NO_CLIENT_ACCESS"
         );
       }
-      if (requestedTenantId) {
-        const tenant = await db
-          .select()
-          .from(tenants)
-          .where(eq(tenants.id, requestedTenantId))
-          .limit(1);
-        if (tenant.length === 0) {
-          return createErrorResponse(
-            "Tenant not found",
-            404,
-            "TENANT_NOT_FOUND"
-          );
-        }
-        whereConditions.push(eq(branches.tenantId, requestedTenantId));
+      if (!clientId || clientId !== sessionUser.clientId) {
+        return createErrorResponse(
+          "Invalid client ID",
+          403,
+          "INVALID_CLIENT_ACCESS"
+        );
       }
-      if (clientId) {
-        const client = await db
-          .select()
-          .from(clients)
-          .where(eq(clients.id, clientId))
-          .limit(1);
-        if (client.length === 0) {
-          return createErrorResponse(
-            "Client not found",
-            404,
-            "CLIENT_NOT_FOUND"
-          );
-        }
-        if (requestedTenantId && client[0].tenantId !== requestedTenantId) {
-          return createErrorResponse(
-            "Client does not belong to this tenant",
-            400,
-            "INVALID_CLIENT_TENANT"
-          );
-        }
-        whereConditions.push(eq(branches.clientId, clientId));
+      allowedClientId = sessionUser.clientId;
+      // Fetch tenantId from client
+      const [client] = await db
+        .select({ tenantId: clients.tenantId })
+        .from(clients)
+        .where(eq(clients.id, clientId))
+        .limit(1);
+      if (!client) {
+        return createErrorResponse("Client not found", 404, "CLIENT_NOT_FOUND");
       }
+      tenantId = client.tenantId;
+    } else if (sessionUser.role === "super_admin") {
+      if (!clientId) {
+        return createErrorResponse(
+          "clientId required for super_admin",
+          400,
+          "clientId_REQUIRED"
+        );
+      }
+      // Fetch tenantId from client
+      const [client] = await db
+        .select({ tenantId: clients.tenantId })
+        .from(clients)
+        .where(eq(clients.id, clientId))
+        .limit(1);
+      if (!client) {
+        return createErrorResponse("Client not found", 404, "CLIENT_NOT_FOUND");
+      }
+      tenantId = client.tenantId;
+      allowedClientId = clientId;
     } else if (sessionUser.role === "tenant_admin") {
       if (!sessionUser.tenantId) {
         return createErrorResponse(
@@ -88,38 +82,23 @@ export async function GET(request: NextRequest) {
           "NO_TENANT_ACCESS"
         );
       }
-      whereConditions.push(eq(branches.tenantId, sessionUser.tenantId));
+      tenantId = sessionUser.tenantId;
       if (clientId) {
-        const client = await db
+        // Verify client belongs to tenant
+        const [client] = await db
           .select()
           .from(clients)
-          .where(eq(clients.id, clientId))
+          .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))
           .limit(1);
-        if (client.length === 0) {
+        if (!client) {
           return createErrorResponse(
             "Client not found",
             404,
             "CLIENT_NOT_FOUND"
           );
         }
-        if (client[0].tenantId !== sessionUser.tenantId) {
-          return createErrorResponse(
-            "Client does not belong to this tenant",
-            400,
-            "INVALID_CLIENT_TENANT"
-          );
-        }
-        whereConditions.push(eq(branches.clientId, clientId));
+        allowedClientId = clientId;
       }
-    } else if (sessionUser.role === "client_admin") {
-      if (!sessionUser.clientId) {
-        return createErrorResponse(
-          "User not associated with a client",
-          403,
-          "NO_CLIENT_ACCESS"
-        );
-      }
-      whereConditions.push(eq(branches.clientId, sessionUser.clientId));
     } else {
       return createErrorResponse(
         "Insufficient permissions",
@@ -128,21 +107,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (search) {
-      whereConditions.push(like(branches.name, `%${search}%`));
+    const conditions = [];
+    if (allowedClientId) {
+      conditions.push(eq(branches.clientId, allowedClientId));
     }
-
-    const whereClause =
-      whereConditions.length > 0 ? and(...whereConditions) : undefined;
+    if (search) {
+      conditions.push(like(branches.name, `%${search}%`));
+    }
+    const whereClause = conditions.length ? and(...conditions) : undefined;
 
     const branchList = await db
       .select({
         id: branches.id,
         name: branches.name,
         address: branches.address,
-        tenantId: branches.tenantId,
-        clientId: branches.clientId,
         supervisorId: branches.supervisorId,
+        clientId: branches.clientId,
         createdAt: branches.createdAt,
       })
       .from(branches)
@@ -152,7 +132,7 @@ export async function GET(request: NextRequest) {
       .offset(offset);
 
     const [{ count }] = await db
-      .select({ count: sql`COUNT(*)`.mapWith(Number) })
+      .select({ count: sql`count(*)`.mapWith(Number) })
       .from(branches)
       .where(whereClause);
 
@@ -163,10 +143,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * POST /api/branches
- * Create a new branch (tenant isolated)
- */
 export async function POST(request: NextRequest) {
   try {
     const sessionUser = await getSessionUser(request);
@@ -180,50 +156,76 @@ export async function POST(request: NextRequest) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
 
-    const { name: rawName, address: rawAddress, clientId, supervisorId } = body;
-    const name = rawName.trim().slice(0, 255);
-    const address = rawAddress?.trim().slice(0, 1000);
-    if (!clientId.match(/^[a-zA-Z0-9-]{1,128}$/)) {
-      return createErrorResponse(
-        "Invalid clientId format",
-        400,
-        "INVALID_CLIENT_ID"
-      );
-    }
+    const { name, address, clientId } = body;
 
-    const client = await db
-      .select()
-      .from(clients)
-      .where(eq(clients.id, clientId))
-      .limit(1);
+    let tenantId: string;
+    let allowedClientId: string;
 
-    if (client.length === 0) {
-      return createErrorResponse("Client not found", 404, "CLIENT_NOT_FOUND");
-    }
-
-    const clientData = client[0];
-
-    if (sessionUser.role === "super_admin") {
-      // Super admin can create branches for any client
+    if (sessionUser.role === "client_admin") {
+      if (!sessionUser.clientId) {
+        return createErrorResponse(
+          "User not associated with a client",
+          403,
+          "NO_CLIENT_ACCESS"
+        );
+      }
+      allowedClientId = sessionUser.clientId;
+      if (clientId !== allowedClientId) {
+        return createErrorResponse(
+          "Cannot create branch for another client",
+          403,
+          "INVALID_CLIENT_ACCESS"
+        );
+      }
+      // Fetch tenantId from client
+      const [client] = await db
+        .select({ tenantId: clients.tenantId })
+        .from(clients)
+        .where(eq(clients.id, clientId))
+        .limit(1);
+      if (!client) {
+        return createErrorResponse("Client not found", 404, "CLIENT_NOT_FOUND");
+      }
+      tenantId = client.tenantId;
+    } else if (sessionUser.role === "super_admin") {
+      const requestedTenantId = body.tenantId;
+      if (!requestedTenantId) {
+        return createErrorResponse(
+          "tenantId required for super_admin",
+          400,
+          "TENANT_ID_REQUIRED"
+        );
+      }
+      tenantId = requestedTenantId;
+      // Verify client belongs to tenant
+      const [client] = await db
+        .select()
+        .from(clients)
+        .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))
+        .limit(1);
+      if (!client) {
+        return createErrorResponse("Client not found", 404, "CLIENT_NOT_FOUND");
+      }
+      allowedClientId = clientId;
     } else if (sessionUser.role === "tenant_admin") {
-      if (
-        !sessionUser.tenantId ||
-        clientData.tenantId !== sessionUser.tenantId
-      ) {
+      if (!sessionUser.tenantId) {
         return createErrorResponse(
-          "Cannot access this client",
+          "User not associated with a tenant",
           403,
-          "CLIENT_ACCESS_DENIED"
+          "NO_TENANT_ACCESS"
         );
       }
-    } else if (sessionUser.role === "client_admin") {
-      if (!sessionUser.clientId || clientData.id !== sessionUser.clientId) {
-        return createErrorResponse(
-          "Cannot access this client",
-          403,
-          "CLIENT_ACCESS_DENIED"
-        );
+      tenantId = sessionUser.tenantId;
+      // Verify client belongs to tenant
+      const [client] = await db
+        .select()
+        .from(clients)
+        .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))
+        .limit(1);
+      if (!client) {
+        return createErrorResponse("Client not found", 404, "CLIENT_NOT_FOUND");
       }
+      allowedClientId = clientId;
     } else {
       return createErrorResponse(
         "Insufficient permissions",
@@ -232,61 +234,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (supervisorId) {
-      const supervisor = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, supervisorId))
-        .limit(1);
-
-      if (supervisor.length === 0) {
-        return createErrorResponse(
-          "Supervisor not found",
-          404,
-          "SUPERVISOR_NOT_FOUND"
-        );
-      }
-
-      if (
-        !["employee", "client_admin", "tenant_admin", "super_admin"].includes(
-          supervisor[0].role || ""
-        )
-      ) {
-        return createErrorResponse(
-          "Invalid supervisor role",
-          400,
-          "INVALID_SUPERVISOR_ROLE"
-        );
-      }
-
-      if (supervisor[0].role !== "super_admin") {
-        const tenantMember = await db
-          .select()
-          .from(TenantMembers)
-          .where(
-            and(
-              eq(TenantMembers.userId, supervisorId),
-              eq(TenantMembers.tenantId, clientData.tenantId)
-            )
-          )
-          .limit(1);
-
-        if (tenantMember.length === 0) {
-          return createErrorResponse(
-            "Supervisor not associated with this tenant",
-            400,
-            "INVALID_TENANT_MEMBER"
-          );
-        }
-      }
+    // Verify tenant exists
+    const tenant = await db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1);
+    if (tenant.length === 0) {
+      return createErrorResponse("Tenant not found", 404, "TENANT_NOT_FOUND");
     }
 
+    // Check for duplicate branch name within client
     const existingBranch = await db
       .select()
       .from(branches)
       .where(and(eq(branches.clientId, clientId), eq(branches.name, name)))
       .limit(1);
-
     if (existingBranch.length > 0) {
       return createErrorResponse(
         "Branch name already exists for this client",
@@ -296,25 +259,20 @@ export async function POST(request: NextRequest) {
     }
 
     const branchId = generateId("branch");
-    const createdBranch = await db.transaction(async (tx) => {
-      await tx.insert(branches).values({
-        id: branchId,
-        name,
-        address,
-        supervisorId,
-        tenantId: clientData.tenantId,
-        clientId,
-        createdAt: new Date(),
-      });
-
-      const [branch] = await tx
-        .select()
-        .from(branches)
-        .where(eq(branches.id, branchId))
-        .limit(1);
-
-      return branch;
+    await db.insert(branches).values({
+      id: branchId,
+      name,
+      address,
+      supervisorId: null, // Enforce null for client_admin
+      clientId,
+      createdAt: new Date(),
     });
+
+    const [createdBranch] = await db
+      .select()
+      .from(branches)
+      .where(eq(branches.id, branchId))
+      .limit(1);
 
     return createSuccessResponse(createdBranch, 201);
   } catch (error) {

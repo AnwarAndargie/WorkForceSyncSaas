@@ -179,10 +179,10 @@ export default function DashboardPage() {
             {user.role === "client_admin" && (
               <>
                 <Button asChild variant="outline" className="w-full">
-                  <Link href="/dashboard/contracts/new">Make a Contract</Link>
+                  <Link href="/dashboard/contracts">Make a Contract</Link>
                 </Button>
                 <Button asChild variant="outline" className="w-full">
-                  <Link href="/dashboard/branches/new">Add Branch</Link>
+                  <Link href="/dashboard/branches">Add Branch</Link>
                 </Button>
               </>
             )}

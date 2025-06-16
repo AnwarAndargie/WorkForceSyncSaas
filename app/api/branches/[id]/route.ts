@@ -1,195 +1,247 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
 import { branches, users, tenants, clients } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import {
   createSuccessResponse,
   createErrorResponse,
   handleDatabaseError,
 } from "@/lib/api/response";
 import { getSessionUser } from "@/lib/auth/session";
-import { canPerformWriteOperation, authorizeUserFor } from "@/lib/auth/authorization";
 
-/**
- * GET /api/branches/[id]
- * Get a specific branch (with auth)
- */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest) {
   try {
-    const user = await getSessionUser(request);
-    if (!user) {
+    const sessionUser = await getSessionUser(request);
+    if (!sessionUser) {
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    const branchId = params.id;
-
-    // Check authorization
-    const authorized = await authorizeUserFor("branch", branchId, user);
-    if (!authorized) {
-      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
-    }
-
-    const branch = await db
-      .select({
-        id: branches.id,
-        name: branches.name,
-        address: branches.address,
-        supervisorId: branches.supervisorId,
-        tenantId: branches.tenantId,
-        clientId: branches.clientId,
-        createdAt: branches.createdAt,
-        supervisorName: users.name,
-        supervisorEmail: users.email,
-        tenantName: tenants.name,
-        clientName: clients.name,
-      })
-      .from(branches)
-      .leftJoin(users, eq(branches.supervisorId, users.id))
-      .leftJoin(tenants, eq(branches.tenantId, tenants.id))
-      .leftJoin(clients, eq(branches.clientId, clients.id))
-      .where(eq(branches.id, branchId))
-      .limit(1);
-
-    if (branch.length === 0) {
-      return createErrorResponse("Branch not found", 404, "BRANCH_NOT_FOUND");
-    }
-
-    return createSuccessResponse(branch[0], 200);
-  } catch (error) {
-    return handleDatabaseError(error);
-  }
-}
-
-/**
- * PATCH /api/branches/[id]
- * Update a branch (with auth)
- */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const user = await getSessionUser(request);
-    if (!user) {
-      return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
-    }
-
-    if (!canPerformWriteOperation(user)) {
-      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
-    }
-
-    const branchId = params.id;
-
-    // Check authorization
-    const authorized = await authorizeUserFor("branch", branchId, user);
-    if (!authorized) {
-      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    const { searchParams } = new URL(request.url);
+    const branchId = searchParams.get("id");
+    if (!branchId) {
+      return createErrorResponse(
+        "Branch ID required",
+        400,
+        "BRANCH_ID_REQUIRED"
+      );
     }
 
     const body = await request.json();
+    const { name, address, supervisorId, clientId } = body;
 
-    const allowedFields = ["name", "address", "supervisorId"];
-    const updatePayload: Record<string, any> = {};
+    const [branch] = await db
+      .select({
+        id: branches.id,
+        clientId: branches.clientId,
+        tenantId: clients.tenantId,
+      })
+      .from(branches)
+      .innerJoin(clients, eq(branches.clientId, clients.id))
+      .where(eq(branches.id, branchId))
+      .limit(1);
+    if (!branch) {
+      return createErrorResponse("Branch not found", 404, "BRANCH_NOT_FOUND");
+    }
 
-    for (const key of allowedFields) {
-      if (key in body) {
-        updatePayload[key] = body[key];
+    let tenantId = branch.tenantId;
+    let allowedClientId = branch.clientId;
+
+    // Verify tenant access
+    if (sessionUser.role === "client_admin") {
+      if (!sessionUser.clientId || sessionUser.clientId !== allowedClientId) {
+        return createErrorResponse(
+          "Cannot update branch for this client",
+          403,
+          "INVALID_CLIENT_ACCESS"
+        );
       }
+      // client_admin cannot update supervisorId
+      if (supervisorId !== undefined) {
+        return createErrorResponse(
+          "client_admin cannot update supervisor",
+          403,
+          "INVALID_PERMISSION"
+        );
+      }
+    } else if (sessionUser.role === "super_admin") {
+      // super_admin can update any branch
+      if (clientId) {
+        const [client] = await db
+          .select()
+          .from(clients)
+          .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))
+          .limit(1);
+        if (!client) {
+          return createErrorResponse(
+            "Client not found",
+            404,
+            "CLIENT_NOT_FOUND"
+          );
+        }
+        allowedClientId = clientId;
+      }
+    } else if (sessionUser.role === "tenant_admin") {
+      if (!sessionUser.tenantId || sessionUser.tenantId !== tenantId) {
+        return createErrorResponse(
+          "Cannot update branch for this tenant",
+          403,
+          "INVALID_TENANT_ACCESS"
+        );
+      }
+      if (clientId) {
+        const [client] = await db
+          .select()
+          .from(clients)
+          .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))
+          .limit(1);
+        if (!client) {
+          return createErrorResponse(
+            "Client not found",
+            404,
+            "CLIENT_NOT_FOUND"
+          );
+        }
+        allowedClientId = clientId;
+      }
+    } else {
+      return createErrorResponse(
+        "Insufficient permissions",
+        403,
+        "INSUFFICIENT_PERMISSIONS"
+      );
     }
 
-    if (Object.keys(updatePayload).length === 0) {
-      return createErrorResponse("No valid fields to update", 400);
-    }
-
-    // Verify supervisor exists if supervisorId is being updated
-    if (updatePayload.supervisorId) {
-      const supervisor = await db
+    // If supervisorId is provided, verify the user exists and is an employee
+    if (supervisorId) {
+      const [supervisor] = await db
         .select()
         .from(users)
-        .where(eq(users.id, updatePayload.supervisorId))
+        .where(and(eq(users.id, supervisorId), eq(users.role, "employee")))
         .limit(1);
-
-      if (supervisor.length === 0) {
-        return createErrorResponse("Supervisor not found", 404, "SUPERVISOR_NOT_FOUND");
+      if (!supervisor) {
+        return createErrorResponse(
+          "Supervisor not found or not an employee",
+          404,
+          "SUPERVISOR_NOT_FOUND"
+        );
       }
     }
 
-    // Check if branch exists
-    const existingBranch = await db
+    if (name && allowedClientId) {
+      const existingBranch = await db
+        .select()
+        .from(branches)
+        .where(
+          and(
+            eq(branches.clientId, allowedClientId),
+            eq(branches.name, name),
+            sql`${branches.id} != ${branchId}`
+          )
+        )
+        .limit(1);
+      if (existingBranch.length > 0) {
+        return createErrorResponse(
+          "Branch name already exists for this client",
+          400,
+          "DUPLICATE_BRANCH_NAME"
+        );
+      }
+    }
+
+    // Prepare update data
+    const updateData: Partial<typeof branches.$inferInsert> = {};
+    if (name) updateData.name = name;
+    if (address !== undefined) updateData.address = address;
+    if (supervisorId !== undefined) updateData.supervisorId = supervisorId;
+    if (clientId) updateData.clientId = clientId;
+
+    if (Object.keys(updateData).length === 0) {
+      return createErrorResponse(
+        "No fields provided to update",
+        400,
+        "NO_UPDATE_FIELDS"
+      );
+    }
+
+    await db.update(branches).set(updateData).where(eq(branches.id, branchId));
+
+    const [updatedBranch] = await db
       .select()
       .from(branches)
       .where(eq(branches.id, branchId))
       .limit(1);
 
-    if (existingBranch.length === 0) {
-      return createErrorResponse("Branch not found", 404, "BRANCH_NOT_FOUND");
-    }
-
-    // Update the branch
-    await db
-      .update(branches)
-      .set(updatePayload)
-      .where(eq(branches.id, branchId));
-
-    return createSuccessResponse(
-      { message: "Branch updated successfully" },
-      200
-    );
+    return createSuccessResponse(updatedBranch, 200);
   } catch (error) {
     return handleDatabaseError(error);
   }
 }
 
-/**
- * DELETE /api/branches/[id]
- * Delete a branch (with auth)
- */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest) {
   try {
-    const user = await getSessionUser(request);
-    if (!user) {
+    const sessionUser = await getSessionUser(request);
+    if (!sessionUser) {
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    if (!canPerformWriteOperation(user)) {
-      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+    const { searchParams } = new URL(request.url);
+    const branchId = searchParams.get("id");
+    if (!branchId) {
+      return createErrorResponse(
+        "Branch ID required",
+        400,
+        "BRANCH_ID_REQUIRED"
+      );
     }
 
-    const branchId = params.id;
-
-    // Check authorization
-    const authorized = await authorizeUserFor("branch", branchId, user);
-    if (!authorized) {
-      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
-    }
-
-    // Check if branch exists
-    const existingBranch = await db
-      .select()
+    // Fetch the branch to verify it exists and get its tenantId
+    const [branch] = await db
+      .select({
+        id: branches.id,
+        clientId: branches.clientId,
+        tenantId: clients.tenantId,
+      })
       .from(branches)
+      .innerJoin(clients, eq(branches.clientId, clients.id))
       .where(eq(branches.id, branchId))
       .limit(1);
-
-    if (existingBranch.length === 0) {
+    if (!branch) {
       return createErrorResponse("Branch not found", 404, "BRANCH_NOT_FOUND");
     }
 
-    // Delete the branch
-    await db
-      .delete(branches)
-      .where(eq(branches.id, branchId));
+    let tenantId = branch.tenantId;
 
-    return createSuccessResponse(
-      { message: "Branch deleted successfully" },
-      200
-    );
+    // Verify tenant access
+    if (sessionUser.role === "client_admin") {
+      if (!sessionUser.clientId || sessionUser.clientId !== branch.clientId) {
+        return createErrorResponse(
+          "Cannot delete branch for this client",
+          403,
+          "INVALID_CLIENT_ACCESS"
+        );
+      }
+    } else if (sessionUser.role === "super_admin") {
+      // super_admin can delete any branch
+    } else if (sessionUser.role === "tenant_admin") {
+      if (!sessionUser.tenantId || sessionUser.tenantId !== tenantId) {
+        return createErrorResponse(
+          "Cannot delete branch for this tenant",
+          403,
+          "INVALID_TENANT_ACCESS"
+        );
+      }
+    } else {
+      return createErrorResponse(
+        "Insufficient permissions",
+        403,
+        "INSUFFICIENT_PERMISSIONS"
+      );
+    }
+
+    await db.delete(branches).where(eq(branches.id, branchId));
+
+    return createSuccessResponse({ success: true }, 200);
   } catch (error) {
     return handleDatabaseError(error);
   }
-} 
+}
