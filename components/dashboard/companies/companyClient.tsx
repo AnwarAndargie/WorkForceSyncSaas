@@ -38,7 +38,19 @@ import {
 import { Trash, EyeIcon, Pen } from "lucide-react";
 import { useCompanies, Company } from "@/hooks/use-companies";
 import { CompanyFormDialog } from "./company-form-dialog";
+import useSWR from "swr";
+import { User } from "@/lib/db/schema";
 
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error("Unauthorized");
+    }
+    throw new Error(`Failed to fetch user: ${res.status}`);
+  }
+  return res.json();
+};
 export const columns: ColumnDef<Company>[] = [
   {
     id: "select",
@@ -125,9 +137,7 @@ export const columns: ColumnDef<Company>[] = [
     cell: ({ row }) => {
       const company = row.original;
 
-      return (
-        <CompanyActions company={company} />
-      );
+      return <CompanyActions company={company} />;
     },
   },
 ];
@@ -137,12 +147,18 @@ function CompanyActions({ company }: { company: Company }) {
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
 
   const handleDelete = async () => {
-    if (window.confirm("Are you sure you want to delete this company? This action cannot be undone.")) {
+    if (
+      window.confirm(
+        "Are you sure you want to delete this company? This action cannot be undone."
+      )
+    ) {
       try {
         await deleteCompany(company.id);
         alert("Company deleted successfully");
       } catch (error) {
-        alert(error instanceof Error ? error.message : "Failed to delete company");
+        alert(
+          error instanceof Error ? error.message : "Failed to delete company"
+        );
       }
     }
   };
@@ -168,7 +184,7 @@ function CompanyActions({ company }: { company: Company }) {
             <Pen className="mr-2 h-4 w-4" />
             Edit Company
           </DropdownMenuItem>
-          <DropdownMenuItem 
+          <DropdownMenuItem
             onClick={handleDelete}
             disabled={isDeleting}
             className="text-red-600"
@@ -191,14 +207,20 @@ function CompanyActions({ company }: { company: Company }) {
 
 export function CompanyClient() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    []
+  );
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
   const [page, setPage] = React.useState(1);
   const [search, setSearch] = React.useState("");
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
 
   const { companies, meta, isLoading, error } = useCompanies(page, 10, search);
+  const { data: users } = useSWR<User[]>("/api/users", fetcher);
+
+  
 
   const table = useReactTable({
     data: companies,
@@ -257,7 +279,7 @@ export function CompanyClient() {
           Manage your companies here. Total: {meta?.total || 0}
         </p>
       </div>
-      
+
       <div className="flex items-center py-4">
         <Input
           placeholder="Search companies..."
@@ -292,7 +314,7 @@ export function CompanyClient() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      
+
       <div className="rounded-md border w-[100%] overflow-hidden">
         <Table>
           <TableHeader>
@@ -316,7 +338,10 @@ export function CompanyClient() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center"
+                >
                   Loading companies...
                 </TableCell>
               </TableRow>
@@ -349,15 +374,16 @@ export function CompanyClient() {
           </TableBody>
         </Table>
       </div>
-      
+
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length} of{" "}
           {companies.length} row(s) selected.
           {meta && (
             <span className="ml-4">
-              Page {meta.page} of {Math.ceil((meta.total || 0) / (meta.limit || 10))} 
-              ({meta.total} total)
+              Page {meta.page} of{" "}
+              {Math.ceil((meta.total || 0) / (meta.limit || 10))}({meta.total}{" "}
+              total)
             </span>
           )}
         </div>
@@ -365,7 +391,7 @@ export function CompanyClient() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={!meta?.hasPrev || isLoading}
           >
             Previous
@@ -373,7 +399,7 @@ export function CompanyClient() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setPage(p => p + 1)}
+            onClick={() => setPage((p) => p + 1)}
             disabled={!meta?.hasNext || isLoading}
           >
             Next
@@ -385,6 +411,7 @@ export function CompanyClient() {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         mode="create"
+        users={users}
       />
     </div>
   );

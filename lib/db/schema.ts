@@ -121,6 +121,25 @@ export const employeeBranches = mysqlTable("employee_branches", {
   assignedAt: datetime("assigned_at"),
 });
 
+export const events = mysqlTable("events", {
+  id: varchar("id", { length: 128 }).primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  startTime: datetime("start_time").notNull(),
+  endTime: datetime("end_time").notNull(),
+  branchId: varchar("branch_id", { length: 128 })
+    .notNull()
+    .references(() => branches.id, { onDelete: "cascade" }),
+  clientId: varchar("client_id", { length: 128 })
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  tenantId: varchar("tenant_id", { length: 128 })
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  status: mysqlEnum("status", ["scheduled", "ongoing", "completed", "cancelled"]).default("scheduled"),
+  createdAt: datetime("created_at"),
+});
+
 export const assignments = mysqlTable("assignments", {
   id: varchar("id", { length: 128 }).primaryKey(),
   employeeId: varchar("employee_id", { length: 128 }).references(
@@ -129,12 +148,22 @@ export const assignments = mysqlTable("assignments", {
       onDelete: "cascade",
     }
   ),
+  eventId: varchar("event_id", { length: 128 }).references(() => events.id, {
+    onDelete: "cascade",
+  }),
+  branchId: varchar("branch_id", { length: 128 }).references(() => branches.id, {
+    onDelete: "cascade",
+  }),
+  tenantId: varchar("tenant_id", { length: 128 })
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
   clientId: varchar("client_id", { length: 128 }).references(() => clients.id, {
     onDelete: "cascade",
   }),
   startDate: date("start_date"),
   endDate: date("end_date"),
-  status: mysqlEnum("status", ["active", "inactive", "completed"]),
+  status: mysqlEnum("status", ["pending", "accepted", "rejected", "completed"]).default("pending"),
+  createdAt: datetime("created_at"),
 });
 
 export const shifts = mysqlTable("shifts", {

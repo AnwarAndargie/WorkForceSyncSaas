@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { assignments, users, clients } from "@/lib/db/schema";
+import { assignments, users, clients, events, branches } from "@/lib/db/schema";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -27,51 +27,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 100);
-    const search = searchParams.get("search");
     const status = searchParams.get("status");
     const employeeId = searchParams.get("employeeId");
-    const clientId = searchParams.get("clientId");
     const offset = (page - 1) * limit;
 
     const conditions = [];
     
     // Apply role-based filtering
-    if (user.role === "super_admin") {
-      // Super admin can see all assignments
+    if (user.role === "tenant_admin" && user.tenantId) {
+      // Tenant admin can see all assignments for their tenant
+      conditions.push(eq(assignments.tenantId, user.tenantId));
       if (status) {
-        conditions.push(eq(assignments.status, status as "active" | "inactive" | "completed"));
+        conditions.push(eq(assignments.status, status as "pending" | "accepted" | "rejected" | "completed"));
       }
       if (employeeId) {
         conditions.push(eq(assignments.employeeId, employeeId));
       }
-      if (clientId) {
-        conditions.push(eq(assignments.clientId, clientId));
-      }
-    } else if (user.role === "tenant_admin" && user.tenantId) {
-      // Tenant admin can see assignments for their tenant's clients
-      // We need to join with clients to filter by tenant
+    } else if (user.role === "employee") {
+      // Employee can only see their own assignments
+      conditions.push(eq(assignments.employeeId, user.id));
       if (status) {
-        conditions.push(eq(assignments.status, status as "active" | "inactive" | "completed"));
-      }
-      if (employeeId) {
-        conditions.push(eq(assignments.employeeId, employeeId));
-      }
-      if (clientId) {
-        // Verify the client belongs to their tenant first
-        const authorized = await checkClientAccess(user, clientId);
-        if (!authorized) {
-          return createErrorResponse("Forbidden", 403, "FORBIDDEN");
-        }
-        conditions.push(eq(assignments.clientId, clientId));
-      }
-    } else if (user.role === "client_admin" && user.clientId) {
-      // Client admin can only see assignments for their client
-      conditions.push(eq(assignments.clientId, user.clientId));
-      if (status) {
-        conditions.push(eq(assignments.status, status as "active" | "inactive" | "completed"));
-      }
-      if (employeeId) {
-        conditions.push(eq(assignments.employeeId, employeeId));
+        conditions.push(eq(assignments.status, status as "pending" | "accepted" | "rejected" | "completed"));
       }
     } else {
       return createErrorResponse("Forbidden", 403, "FORBIDDEN");
@@ -79,24 +55,35 @@ export async function GET(request: NextRequest) {
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Get assignments with employee and client details
+    // Get assignments with employee, client, event, and branch details
     const assignmentsList = await db
       .select({
         id: assignments.id,
         employeeId: assignments.employeeId,
+        eventId: assignments.eventId,
+        branchId: assignments.branchId,
         clientId: assignments.clientId,
         startDate: assignments.startDate,
         endDate: assignments.endDate,
         status: assignments.status,
+        createdAt: assignments.createdAt,
         employeeName: users.name,
         employeeEmail: users.email,
         clientName: clients.name,
+        eventName: events.name,
+        eventDescription: events.description,
+        eventStartTime: events.startTime,
+        eventEndTime: events.endTime,
+        branchName: branches.name,
+        branchAddress: branches.address,
       })
       .from(assignments)
       .leftJoin(users, eq(assignments.employeeId, users.id))
       .leftJoin(clients, eq(assignments.clientId, clients.id))
+      .leftJoin(events, eq(assignments.eventId, events.id))
+      .leftJoin(branches, eq(assignments.branchId, branches.id))
       .where(whereClause)
-      .orderBy(desc(assignments.startDate))
+      .orderBy(desc(assignments.createdAt))
       .limit(limit)
       .offset(offset);
 
@@ -114,7 +101,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/assignments
- * Create a new assignment (with auth)
+ * Create a new assignment (with auth) - Only tenant_admin can create assignments
  */
 export async function POST(request: NextRequest) {
   try {
@@ -123,25 +110,20 @@ export async function POST(request: NextRequest) {
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    if (!canPerformWriteOperation(user)) {
-      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+    // Only tenant_admin can create assignments
+    if (user.role !== "tenant_admin" || !user.tenantId) {
+      return createErrorResponse("Forbidden: Only tenant admins can create assignments", 403, "FORBIDDEN");
     }
 
     const body = await request.json();
-    const validationError = validateRequiredFields(body, ["employeeId", "clientId", "startDate"]);
+    const validationError = validateRequiredFields(body, ["employeeId", "eventId", "branchId"]);
     if (validationError) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
 
-    const { employeeId, clientId, startDate, endDate, status } = body;
+    const { employeeId, eventId, branchId, startDate, endDate } = body;
 
-    // Check if user can access this client
-    const hasAccess = await checkClientAccess(user, clientId);
-    if (!hasAccess) {
-      return createErrorResponse("Forbidden: Cannot access this client", 403, "FORBIDDEN");
-    }
-
-    // Verify employee exists
+    // Verify employee exists and belongs to the tenant
     const employee = await db
       .select()
       .from(users)
@@ -152,24 +134,39 @@ export async function POST(request: NextRequest) {
       return createErrorResponse("Employee not found", 404, "EMPLOYEE_NOT_FOUND");
     }
 
-    // Verify client exists
-    const client = await db
+    // Verify event exists and belongs to the tenant
+    const event = await db
       .select()
-      .from(clients)
-      .where(eq(clients.id, clientId))
+      .from(events)
+      .where(and(eq(events.id, eventId), eq(events.tenantId, user.tenantId)))
       .limit(1);
 
-    if (client.length === 0) {
-      return createErrorResponse("Client not found", 404, "CLIENT_NOT_FOUND");
+    if (event.length === 0) {
+      return createErrorResponse("Event not found or access denied", 404, "EVENT_NOT_FOUND");
+    }
+
+    // Verify branch exists and belongs to the tenant
+    const branch = await db
+      .select()
+      .from(branches)
+      .where(and(eq(branches.id, branchId), eq(branches.tenantId, user.tenantId)))
+      .limit(1);
+
+    if (branch.length === 0) {
+      return createErrorResponse("Branch not found or access denied", 404, "BRANCH_NOT_FOUND");
     }
 
     const newAssignment = {
       id: generateId("assignment"),
       employeeId,
-      clientId,
-      startDate: new Date(startDate),
+      eventId,
+      branchId,
+      tenantId: user.tenantId,
+      clientId: event[0].clientId,
+      startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
-      status: status || "active",
+      status: "pending" as const,
+      createdAt: new Date(),
     };
 
     await db.insert(assignments).values(newAssignment);
@@ -179,17 +176,28 @@ export async function POST(request: NextRequest) {
       .select({
         id: assignments.id,
         employeeId: assignments.employeeId,
+        eventId: assignments.eventId,
+        branchId: assignments.branchId,
         clientId: assignments.clientId,
         startDate: assignments.startDate,
         endDate: assignments.endDate,
         status: assignments.status,
+        createdAt: assignments.createdAt,
         employeeName: users.name,
         employeeEmail: users.email,
         clientName: clients.name,
+        eventName: events.name,
+        eventDescription: events.description,
+        eventStartTime: events.startTime,
+        eventEndTime: events.endTime,
+        branchName: branches.name,
+        branchAddress: branches.address,
       })
       .from(assignments)
       .leftJoin(users, eq(assignments.employeeId, users.id))
       .leftJoin(clients, eq(assignments.clientId, clients.id))
+      .leftJoin(events, eq(assignments.eventId, events.id))
+      .leftJoin(branches, eq(assignments.branchId, branches.id))
       .where(eq(assignments.id, newAssignment.id))
       .limit(1);
 

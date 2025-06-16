@@ -10,17 +10,27 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectLabel,
+  SelectItem,
+  SelectContent,
+  SelectValue,
+  SelectTrigger,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Company, useCompanies } from "@/hooks/use-companies";
 import { toast } from "sonner";
+import { User } from "@/lib/db/schema";
 
 interface CompanyFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   company?: Company | null;
   mode: "create" | "edit";
+  users: User[];
 }
 
 export function CompanyFormDialog({
@@ -28,6 +38,7 @@ export function CompanyFormDialog({
   onOpenChange,
   company,
   mode,
+  users,
 }: CompanyFormDialogProps) {
   const { createCompany, updateCompany, isCreating, isUpdating } =
     useCompanies();
@@ -37,7 +48,7 @@ export function CompanyFormDialog({
     phone: "",
     address: "",
     logo: "",
-    ownerId: "user_GmcahzgG79rBLJZUoQC4H", // Temporary user ID for testing
+    ownerId: "user_GmcahzgG79rBLJZUoQC4H",
   });
 
   React.useEffect(() => {
@@ -63,7 +74,9 @@ export function CompanyFormDialog({
   }, [company, mode]);
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -150,19 +163,31 @@ export function CompanyFormDialog({
                 placeholder="+1 (555) 123-4567"
               />
             </div>
-            {/* <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phone" className="text-right">
-                Owner Id
-              </Label>
-              <Input
-                id="phone"
-                name="phone"
+            <div className="grid grid-cols-4 items-center gap-4">
+              <SelectLabel className="text-right">
+                Owner of the company
+              </SelectLabel>
+              <Select
                 value={formData.ownerId}
-                onChange={handleInputChange}
-                className="col-span-3"
-                placeholder="+1 (555) 123-4567"
-              />
-            </div> */}
+                onValueChange={(value) =>
+                  handleInputChange({
+                    target: { name: "ownerId", value },
+                  } as React.ChangeEvent<HTMLSelectElement>)
+                }
+                name="ownerId"
+              >
+                <SelectTrigger className="col-span-3" id="ownerId">
+                  <SelectValue placeholder="Select the company's owner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name || user.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="address" className="text-right">
                 Address

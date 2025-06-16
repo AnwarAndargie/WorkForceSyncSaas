@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { assignments, users, clients } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { assignments, users, clients, events, branches } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 import {
   createSuccessResponse,
   createErrorResponse,
   handleDatabaseError,
+  validateRequiredFields,
 } from "@/lib/api/response";
 import { getSessionUser } from "@/lib/auth/session";
 import { canPerformWriteOperation, authorizeUserFor } from "@/lib/auth/authorization";
@@ -26,27 +27,33 @@ export async function GET(
 
     const assignmentId = params.id;
 
-    // Check authorization
-    const authorized = await authorizeUserFor("assignment", assignmentId, user);
-    if (!authorized) {
-      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
-    }
-
+    // Get assignment with all related data
     const assignment = await db
       .select({
         id: assignments.id,
         employeeId: assignments.employeeId,
+        eventId: assignments.eventId,
+        branchId: assignments.branchId,
         clientId: assignments.clientId,
         startDate: assignments.startDate,
         endDate: assignments.endDate,
         status: assignments.status,
+        createdAt: assignments.createdAt,
         employeeName: users.name,
         employeeEmail: users.email,
         clientName: clients.name,
+        eventName: events.name,
+        eventDescription: events.description,
+        eventStartTime: events.startTime,
+        eventEndTime: events.endTime,
+        branchName: branches.name,
+        branchAddress: branches.address,
       })
       .from(assignments)
       .leftJoin(users, eq(assignments.employeeId, users.id))
       .leftJoin(clients, eq(assignments.clientId, clients.id))
+      .leftJoin(events, eq(assignments.eventId, events.id))
+      .leftJoin(branches, eq(assignments.branchId, branches.id))
       .where(eq(assignments.id, assignmentId))
       .limit(1);
 
@@ -54,7 +61,24 @@ export async function GET(
       return createErrorResponse("Assignment not found", 404, "ASSIGNMENT_NOT_FOUND");
     }
 
-    return createSuccessResponse(assignment[0], 200);
+    const assignmentData = assignment[0];
+
+    // Check access permissions
+    if (user.role === "employee") {
+      // Employee can only see their own assignments
+      if (assignmentData.employeeId !== user.id) {
+        return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+      }
+    } else if (user.role === "tenant_admin") {
+      // Tenant admin can see assignments for their tenant
+      if (assignmentData.tenantId !== user.tenantId) {
+        return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+      }
+    } else {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    }
+
+    return createSuccessResponse(assignmentData, 200);
   } catch (error) {
     return handleDatabaseError(error);
   }
@@ -62,7 +86,7 @@ export async function GET(
 
 /**
  * PATCH /api/assignments/[id]
- * Update an assignment (with auth)
+ * Update assignment status (employees can accept/reject, tenant admins can update)
  */
 export async function PATCH(
   request: NextRequest,
@@ -74,84 +98,96 @@ export async function PATCH(
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    if (!canPerformWriteOperation(user)) {
-      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
-    }
-
     const assignmentId = params.id;
-
-    // Check authorization
-    const authorized = await authorizeUserFor("assignment", assignmentId, user);
-    if (!authorized) {
-      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
-    }
-
     const body = await request.json();
 
-    const allowedFields = ["employeeId", "clientId", "startDate", "endDate", "status"];
-    const updatePayload: Record<string, any> = {};
-
-    for (const key of allowedFields) {
-      if (key in body) {
-        if (key === "startDate" || key === "endDate") {
-          updatePayload[key] = body[key] ? new Date(body[key]) : null;
-        } else {
-          updatePayload[key] = body[key];
-        }
-      }
-    }
-
-    if (Object.keys(updatePayload).length === 0) {
-      return createErrorResponse("No valid fields to update", 400);
-    }
-
-    // Verify employee exists if employeeId is being updated
-    if (updatePayload.employeeId) {
-      const employee = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, updatePayload.employeeId))
-        .limit(1);
-
-      if (employee.length === 0) {
-        return createErrorResponse("Employee not found", 404, "EMPLOYEE_NOT_FOUND");
-      }
-    }
-
-    // Verify client exists if clientId is being updated
-    if (updatePayload.clientId) {
-      const client = await db
-        .select()
-        .from(clients)
-        .where(eq(clients.id, updatePayload.clientId))
-        .limit(1);
-
-      if (client.length === 0) {
-        return createErrorResponse("Client not found", 404, "CLIENT_NOT_FOUND");
-      }
-    }
-
-    // Check if assignment exists
-    const existingAssignment = await db
+    // Get the current assignment
+    const currentAssignment = await db
       .select()
       .from(assignments)
       .where(eq(assignments.id, assignmentId))
       .limit(1);
 
-    if (existingAssignment.length === 0) {
+    if (currentAssignment.length === 0) {
       return createErrorResponse("Assignment not found", 404, "ASSIGNMENT_NOT_FOUND");
     }
 
-    // Update the assignment
-    await db
-      .update(assignments)
-      .set(updatePayload)
-      .where(eq(assignments.id, assignmentId));
+    const assignment = currentAssignment[0];
 
-    return createSuccessResponse(
-      { message: "Assignment updated successfully" },
-      200
-    );
+    // Check permissions
+    if (user.role === "employee") {
+      // Employee can only update their own assignments and only the status
+      if (assignment.employeeId !== user.id) {
+        return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+      }
+      
+      // Employees can only update status to accepted or rejected
+      const { status } = body;
+      if (!status || !["accepted", "rejected"].includes(status)) {
+        return createErrorResponse("Invalid status. Employees can only accept or reject assignments.", 400, "INVALID_STATUS");
+      }
+
+      await db
+        .update(assignments)
+        .set({ status })
+        .where(eq(assignments.id, assignmentId));
+
+    } else if (user.role === "tenant_admin") {
+      // Tenant admin can update assignments for their tenant
+      if (assignment.tenantId !== user.tenantId) {
+        return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+      }
+
+      // Tenant admin can update various fields
+      const updateData: any = {};
+      if (body.status) updateData.status = body.status;
+      if (body.startDate) updateData.startDate = new Date(body.startDate);
+      if (body.endDate) updateData.endDate = new Date(body.endDate);
+
+      if (Object.keys(updateData).length === 0) {
+        return createErrorResponse("No valid fields to update", 400, "NO_UPDATE_FIELDS");
+      }
+
+      await db
+        .update(assignments)
+        .set(updateData)
+        .where(eq(assignments.id, assignmentId));
+
+    } else {
+      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
+    }
+
+    // Return updated assignment with joined data
+    const updatedAssignment = await db
+      .select({
+        id: assignments.id,
+        employeeId: assignments.employeeId,
+        eventId: assignments.eventId,
+        branchId: assignments.branchId,
+        clientId: assignments.clientId,
+        startDate: assignments.startDate,
+        endDate: assignments.endDate,
+        status: assignments.status,
+        createdAt: assignments.createdAt,
+        employeeName: users.name,
+        employeeEmail: users.email,
+        clientName: clients.name,
+        eventName: events.name,
+        eventDescription: events.description,
+        eventStartTime: events.startTime,
+        eventEndTime: events.endTime,
+        branchName: branches.name,
+        branchAddress: branches.address,
+      })
+      .from(assignments)
+      .leftJoin(users, eq(assignments.employeeId, users.id))
+      .leftJoin(clients, eq(assignments.clientId, clients.id))
+      .leftJoin(events, eq(assignments.eventId, events.id))
+      .leftJoin(branches, eq(assignments.branchId, branches.id))
+      .where(eq(assignments.id, assignmentId))
+      .limit(1);
+
+    return createSuccessResponse(updatedAssignment[0], 200);
   } catch (error) {
     return handleDatabaseError(error);
   }
@@ -159,7 +195,7 @@ export async function PATCH(
 
 /**
  * DELETE /api/assignments/[id]
- * Delete an assignment (with auth)
+ * Delete an assignment (tenant admin only)
  */
 export async function DELETE(
   request: NextRequest,
@@ -171,38 +207,26 @@ export async function DELETE(
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    if (!canPerformWriteOperation(user)) {
-      return createErrorResponse("Forbidden: Insufficient permissions", 403, "FORBIDDEN");
+    if (user.role !== "tenant_admin" || !user.tenantId) {
+      return createErrorResponse("Forbidden: Only tenant admins can delete assignments", 403, "FORBIDDEN");
     }
 
     const assignmentId = params.id;
 
-    // Check authorization
-    const authorized = await authorizeUserFor("assignment", assignmentId, user);
-    if (!authorized) {
-      return createErrorResponse("Forbidden", 403, "FORBIDDEN");
-    }
-
-    // Check if assignment exists
-    const existingAssignment = await db
+    // Verify assignment exists and belongs to tenant
+    const assignment = await db
       .select()
       .from(assignments)
-      .where(eq(assignments.id, assignmentId))
+      .where(and(eq(assignments.id, assignmentId), eq(assignments.tenantId, user.tenantId)))
       .limit(1);
 
-    if (existingAssignment.length === 0) {
-      return createErrorResponse("Assignment not found", 404, "ASSIGNMENT_NOT_FOUND");
+    if (assignment.length === 0) {
+      return createErrorResponse("Assignment not found or access denied", 404, "ASSIGNMENT_NOT_FOUND");
     }
 
-    // Delete the assignment
-    await db
-      .delete(assignments)
-      .where(eq(assignments.id, assignmentId));
+    await db.delete(assignments).where(eq(assignments.id, assignmentId));
 
-    return createSuccessResponse(
-      { message: "Assignment deleted successfully" },
-      200
-    );
+    return createSuccessResponse({ message: "Assignment deleted successfully" }, 200);
   } catch (error) {
     return handleDatabaseError(error);
   }
