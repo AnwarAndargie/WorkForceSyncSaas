@@ -13,10 +13,6 @@ import {
   checkTenantAccess,
 } from "@/lib/auth/authorization";
 
-/**
- * GET /api/tenant-members/[id]
- * Get a specific tenant member (with auth)
- */
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -27,9 +23,8 @@ export async function GET(
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    const employeeId = params.id;
+    const employeeId = await params.id;
 
-    // First get the member to check access
     const employeeCheck = await db
       .select({ tenantId: TenantMembers.tenantId })
       .from(TenantMembers)
@@ -43,12 +38,6 @@ export async function GET(
         "MEMBER_NOT_FOUND"
       );
     }
-
-    // Check if user can access this tenant
-    // const hasAccess = await checkTenantAccess(user, employeeCheck[0].tenantId);
-    // if (!hasAccess) {
-    //   return createErrorResponse("Forbidden", 403, "FORBIDDEN");
-    // }
 
     const employee = await db
       .select({

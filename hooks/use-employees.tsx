@@ -1,16 +1,6 @@
 import useSWR, { mutate } from "swr";
 import { useState, useCallback } from "react";
 
-export interface Employee {
-  id: string;
-  name: string;
-  phone_number?: string;
-  address?: string;
-  tenantId?: string;
-  branchId?: string;
-  branchName?: string;
-}
-
 const fetcher = async (url: string) => {
   const response = await fetch(url);
   if (!response.ok) {

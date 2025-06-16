@@ -12,80 +12,142 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { useClients, Client } from "@/hooks/use-clients";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { useEmployees, Employee } from "@/hooks/use-employees";
+import useSWR from "swr";
+import { useSession } from "@/hooks/useSession";
+import { Branch } from "@/lib/db/schema";
 
-interface WorkeForceFormDialogProps {
+interface EmployeeResponse {
+  id: string;
+  userId: string;
+  tenantId: string;
+  branchId: string;
+  branchName: string;
+  name: string;
+  userEmail: string;
+  userPhone: string;
+  tenantName: string;
+  salary: number;
+}
+
+interface WorkForceFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  employee?: Employee | null;
+  employee?: EmployeeResponse | null;
   mode: "create" | "edit";
 }
+
+const fetcher = (url: string) =>
+  fetch(url, { credentials: "include" }).then((res) => {
+    if (!res.ok) throw new Error(`Fetch error: ${res.status}`);
+    return res.json();
+  });
 
 export function WorkForceFormDialog({
   open,
   onOpenChange,
   employee,
   mode,
-}: WorkeForceFormDialogProps) {
+}: WorkForceFormDialogProps) {
   const { createEmployee, updateEmployee, isCreating, isUpdating } =
     useEmployees();
+  const { data: user } = useSession();
+  console.log(employee);
+  const {
+    data: branchesData,
+    error: branchesError,
+    isLoading: branchesLoading,
+  } = useSWR<Branch[]>(
+    user?.tenantId ? `/api/branches?tenantId=${user?.tenantId}` : null,
+    fetcher
+  );
+
   const [formData, setFormData] = React.useState({
     name: "",
     email: "",
     phone_number: "",
     salary: 0,
-    branchId: "", // Temporary user ID for testing
-    tenantId: "tenant_f41b47a0699b4002adf85",
+    branchId: "",
+    tenantId: "",
   });
+
+  // Ensure branches is always an array
+  const branches = React.useMemo(() => {
+    return Array.isArray(branchesData) ? branchesData : [];
+  }, [branchesData]);
 
   React.useEffect(() => {
     if (employee && mode === "edit") {
       setFormData({
         name: employee.name || "",
-        phone_number: employee.phone_number || "",
-        email: employee.email || "",
-        salary: employee.salary,
+        email: employee.userEmail || "",
+        phone_number: employee.userPhone || "",
+        salary: employee.salary || 0,
         branchId: employee.branchId || "",
-        tenantId: employee.tenantId || "tenant_f41b47a0699b4002adf85",
+        tenantId: employee.tenantId || "",
       });
     } else {
       setFormData({
         name: "",
-        phone_number: "",
         email: "",
+        phone_number: "",
         salary: 0,
-        branchId: "",
-        tenantId: "tenant_f41b47a0699b4002adf85",
+        branchId:
+          branches.length === 1 && !branchesLoading ? branches[0].id : "",
+        tenantId: user?.tenantId || "",
       });
     }
-  }, [employee, mode]);
+  }, [employee, mode, user?.tenantId, branches, branchesLoading]);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === "salary" ? Number(value) : value,
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name.trim()) {
-      toast("client name is required");
+      toast("Employee name is required");
+      return;
+    }
+    if (!formData.email.trim()) {
+      toast("Employee email is required");
+      return;
+    }
+    if (!formData.phone_number.trim()) {
+      toast("Employee phone number is required");
+      return;
+    }
+    if (isNaN(formData.salary) || formData.salary < 0) {
+      toast("Salary must be a non-negative number");
+      return;
+    }
+    if (!formData.tenantId) {
+      toast("Tenant ID is required");
       return;
     }
 
     try {
       if (mode === "create") {
         await createEmployee(formData);
-        toast("employee created successfully");
+        toast("Employee created successfully");
       } else if (employee) {
-        const { branchId, ...updateData } = formData;
-        await updateEmployee(employee.id, updateData);
-        toast("employee updated successfully");
+        await updateEmployee(employee.id, formData);
+        toast("Employee updated successfully");
       }
       onOpenChange(false);
     } catch (error) {
@@ -93,14 +155,14 @@ export function WorkForceFormDialog({
     }
   };
 
-  const isLoading = isCreating || isUpdating;
+  const isLoading = isCreating || isUpdating || branchesLoading;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>
-            {mode === "create" ? "Create New employee" : "Edit employee"}
+            {mode === "create" ? "Create New Employee" : "Edit Employee"}
           </DialogTitle>
           <DialogDescription>
             {mode === "create"
@@ -120,41 +182,41 @@ export function WorkForceFormDialog({
                 value={formData.name}
                 onChange={handleInputChange}
                 className="col-span-3"
-                placeholder="employee name"
+                placeholder="Employee name"
                 required
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email" className="text-right">
-                Email*
+                Email *
               </Label>
               <Input
-                id="email"
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
                 className="col-span-3"
                 type="email"
-                placeholder="employee email"
+                placeholder="Employee email"
                 required
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phone" className="text-right">
-                Phone
+              <Label htmlFor="phone_number" className="text-right">
+                Phone *
               </Label>
               <Input
-                id="phone"
+                id="phone_number"
                 name="phone_number"
-                value={formData.phone}
+                value={formData.phone_number}
                 onChange={handleInputChange}
                 className="col-span-3"
                 placeholder="+251 ** ** ** ** **"
+                required
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phone" className="text-right">
-                Salarry
+              <Label htmlFor="salary" className="text-right">
+                Salary *
               </Label>
               <Input
                 id="salary"
@@ -163,7 +225,36 @@ export function WorkForceFormDialog({
                 onChange={handleInputChange}
                 type="number"
                 className="col-span-3"
+                min="0"
+                required
               />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="branchId" className="text-right">
+                Branch
+              </Label>
+              <Select
+                // id="branchId"
+                name="branchId"
+                value={formData.branchId}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, branchId: value }))
+                }
+                disabled={
+                  branches.length === 0 || !!branchesError || branchesLoading
+                }
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder={"Select a branch"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
@@ -175,16 +266,19 @@ export function WorkForceFormDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button
+              type="submit"
+              disabled={isLoading || branchesError || branchesLoading}
+            >
               {isLoading ? (
                 <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground" />
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-t-foreground" />
                   {mode === "create" ? "Creating..." : "Updating..."}
                 </>
               ) : mode === "create" ? (
-                "Create employee"
+                "Create Employee"
               ) : (
-                "Update employee"
+                "Update Employee"
               )}
             </Button>
           </DialogFooter>
@@ -193,3 +287,5 @@ export function WorkForceFormDialog({
     </Dialog>
   );
 }
+
+export default WorkForceFormDialog;

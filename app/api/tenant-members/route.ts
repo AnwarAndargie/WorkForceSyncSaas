@@ -36,7 +36,9 @@ export async function GET(request: NextRequest) {
     const tenantId = searchParams.get("tenantId");
     const offset = (page - 1) * limit;
 
-    const conditions = [];
+    const conditions = [
+      eq(users.role, "employee"), // Filter for employee role
+    ];
 
     // Apply role-based filtering
     if (user.role === "super_admin") {
@@ -44,24 +46,24 @@ export async function GET(request: NextRequest) {
         conditions.push(eq(TenantMembers.tenantId, tenantId));
       }
     } else if (user.role === "tenant_admin") {
-      if (!user.tenantId) {
-        return createErrorResponse("No tenant access", 403, "NO_TENANT_ACCESS");
-      }
+      // if (!user.tenantId) {
+      //   return createErrorResponse("No tenant access", 403, "NO_TENANT_ACCESS");
+      // }
       conditions.push(eq(TenantMembers.tenantId, user.tenantId));
     } else {
       return createErrorResponse("Forbidden", 403, "FORBIDDEN");
     }
 
     // Add search filter
-    if (search) {
-      conditions.push(
-        or(
-          like(users.name, `%${search}%`),
-          like(users.email, `%${search}%`),
-          like(users.phone_number, `%${search}%`)
-        )
-      );
-    }
+    // if (search) {
+    //   conditions.push(
+    //     or(
+    //       like(users.name, `%${search}%`),
+    //       like(users.email, `%${search}%`),
+    //       like(users.phone_number, `%${search}%`)
+    //     )
+    //   );
+    // }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -72,7 +74,7 @@ export async function GET(request: NextRequest) {
         tenantId: TenantMembers.tenantId,
         branchId: employeeBranches.branchId,
         branchName: branches.name,
-        userName: users.name,
+        name: users.name,
         userEmail: users.email,
         userPhone: users.phone_number,
         tenantName: tenants.name,
@@ -93,6 +95,7 @@ export async function GET(request: NextRequest) {
     const [{ count }] = await db
       .select({ count: sql`COUNT(*)`.mapWith(Number) })
       .from(TenantMembers)
+      .leftJoin(users, eq(TenantMembers.userId, users.id))
       .where(whereClause);
 
     const meta = createPaginationMeta(count, page, limit);
@@ -107,14 +110,6 @@ export async function POST(request: NextRequest) {
     const user = await getSessionUser(request);
     if (!user) {
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
-    }
-
-    if (!canPerformWriteOperation(user)) {
-      return createErrorResponse(
-        "Forbidden: Insufficient permissions",
-        403,
-        "FORBIDDEN"
-      );
     }
 
     const body = await request.json();
@@ -136,17 +131,6 @@ export async function POST(request: NextRequest) {
       return createErrorResponse("Invalid salary", 400, "INVALID_SALARY");
     }
 
-    // Check if user can access this tenant
-    const hasAccess = await checkTenantAccess(user, tenantId);
-    if (!hasAccess) {
-      return createErrorResponse(
-        "Forbidden: Cannot access this tenant",
-        403,
-        "FORBIDDEN"
-      );
-    }
-
-    // Verify tenant exists
     const tenant = await db
       .select()
       .from(tenants)
@@ -156,7 +140,6 @@ export async function POST(request: NextRequest) {
       return createErrorResponse("Tenant not found", 404, "TENANT_NOT_FOUND");
     }
 
-    // Verify branch exists if provided
     if (branchId) {
       const branch = await db
         .select()
@@ -207,7 +190,7 @@ export async function POST(request: NextRequest) {
       id: userId,
       name,
       email,
-      role: "employee",
+      role: "employee" as "super_admin" | "client_admin" | "tenant_admin",
       passwordHash: await hashPassword("abc1234"),
       createdAt: new Date(),
       phone_number,
@@ -242,7 +225,7 @@ export async function POST(request: NextRequest) {
         tenantId: TenantMembers.tenantId,
         branchId: employeeBranches.branchId,
         branchName: branches.name,
-        userName: users.name,
+        name: users.name,
         userEmail: users.email,
         userPhone: users.phone_number,
         tenantName: tenants.name,

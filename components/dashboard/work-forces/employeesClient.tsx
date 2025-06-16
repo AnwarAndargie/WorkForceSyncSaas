@@ -47,7 +47,7 @@ export const columns: ColumnDef<Employee>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "userName",
+    accessorKey: "name",
     header: ({ column }) => {
       return (
         <Button
@@ -60,6 +60,7 @@ export const columns: ColumnDef<Employee>[] = [
       );
     },
   },
+
   {
     accessorKey: "userEmail",
     header: ({ column }) => {

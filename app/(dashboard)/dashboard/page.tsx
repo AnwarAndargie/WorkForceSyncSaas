@@ -169,7 +169,7 @@ export default function DashboardPage() {
             {user.role === "tenant_admin" && (
               <>
                 <Button asChild variant="outline" className="w-full">
-                  <Link href="/dashboard/clients/new">Add Client</Link>
+                  <Link href="/dashboard/clients">Add Client</Link>
                 </Button>
                 <Button asChild variant="outline" className="w-full">
                   <Link href="/dashboard/contracts">Manage Contracts</Link>
