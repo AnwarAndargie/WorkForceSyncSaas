@@ -1,104 +1,99 @@
+"use client";
+
+import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShieldCheck, Users, Building2, MapPinned } from "lucide-react";
-import Link from "next/link";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+import SignInPage from "./auth/sign-in/page";
+import SignUpPage from "./auth/sign-up/page";
 
 export default function Home() {
+  const [authMode, setAuthMode] = React.useState<"signin" | "signup">("signin");
+
   return (
-    <div className=" min-h-screen">
-      {/* Hero Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-28 text-center">
-        <h1 className="text-5xl font-bold text-gray-900 sm:text-6xl">
-          Manage Your Workforce and Clients
-          <span className="block text-orange-500 mt-2">
-            All In One Dashboard
-          </span>
-        </h1>
-        <p className="mt-6 text-lg text-gray-600 max-w-2xl mx-auto">
-          Our SaaS platform empowers security and maintenance companies to
-          manage employees, track clients, and monitor branch performance — all
-          in real time.
-        </p>
-        <div className="mt-8 flex justify-center gap-4">
-          <Link href="/auth/sign-up">
-            <Button className="px-6 py-3 text-lg">Start Free Trial</Button>
-          </Link>
-          <Link href="/demo">
-            <Button variant="outline" className="px-6 py-3 text-lg">
-              Watch Demo
+    <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* Left Half: SaaS Description */}
+      <div className="lg:w-1/2 bg-gradient-to-br from-orange-500 to-orange-700 text-white flex items-center justify-center py-12 lg:py-0">
+        <div className="max-w-xl px-6 sm:px-8 text-center lg:text-left">
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">
+            Empower Your Workforce
+            <span className="block mt-2">With One Dashboard</span>
+          </h1>
+          <p className="mt-6 text-lg sm:text-xl text-gray-100">
+            Streamline employee tracking, client management, and branch
+            oversight for your security and maintenance business.
+          </p>
+          <div className="mt-8 space-y-4">
+            <div className="flex items-start space-x-3">
+              <ShieldCheck className="h-6 w-6 mt-1" />
+              <p className="text-sm">
+                Manage employees across multiple branches.
+              </p>
+            </div>
+            <div className="flex items-start space-x-3">
+              <Users className="h-6 w-6 mt-1" />
+              <p className="text-sm">Track client contracts and profiles.</p>
+            </div>
+            <div className="flex items-start space-x-3">
+              <Building2 className="h-6 w-6 mt-1" />
+              <p className="text-sm">Organize branches and site teams.</p>
+            </div>
+            <div className="flex items-start space-x-3">
+              <MapPinned className="h-6 w-6 mt-1" />
+              <p className="text-sm">Monitor operations in real-time.</p>
+            </div>
+          </div>
+          <div className="mt-8">
+            <Button
+              className="px-6 py-3 text-lg bg-white text-orange-600 hover:bg-gray-100"
+              onClick={() =>
+                document
+                  .getElementById("auth-form")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+            >
+              Get Started
             </Button>
-          </Link>
-        </div>
-      </div>
-
-      {/* Features Section */}
-      <div className="bg-gray-100 py-16">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-semibold text-center text-gray-800 mb-12">
-            Powerful Features to Streamline Your Operations
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card>
-              <CardContent className="p-6 text-center">
-                <ShieldCheck className="mx-auto mb-4 h-10 w-10 text-orange-500" />
-                <h3 className="text-xl font-semibold">Employee Management</h3>
-                <p className="text-gray-600 mt-2 text-sm">
-                  Add, assign, and track employees across multiple job sites.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6 text-center">
-                <Users className="mx-auto mb-4 h-10 w-10 text-orange-500" />
-                <h3 className="text-xl font-semibold">Client Profiles</h3>
-                <p className="text-gray-600 mt-2 text-sm">
-                  Keep detailed records of all your client companies and
-                  contracts.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6 text-center">
-                <Building2 className="mx-auto mb-4 h-10 w-10 text-orange-500" />
-                <h3 className="text-xl font-semibold">Branch Locations</h3>
-                <p className="text-gray-600 mt-2 text-sm">
-                  Organize client branches, locations, and active site teams in
-                  one place.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6 text-center">
-                <MapPinned className="mx-auto mb-4 h-10 w-10 text-orange-500" />
-                <h3 className="text-xl font-semibold">Real-Time Overview</h3>
-                <p className="text-gray-600 mt-2 text-sm">
-                  Instantly view where your employees are working and monitor
-                  job site status.
-                </p>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>
 
-      {/* CTA Section */}
-      <div className="bg-white py-20 text-center">
-        <h2 className="text-4xl font-bold text-gray-900">
-          Ready to simplify your workforce management?
-        </h2>
-        <p className="text-lg text-gray-600 mt-4">
-          Try our platform for free. No credit card required.
-        </p>
-        <div className="mt-6">
-          <Link href="/auth/sign-up">
-            <Button size="lg" className="text-lg px-8 py-4">
-              Get Started
-            </Button>
-          </Link>
-        </div>
+      {/* Right Half: Sign-In/Sign-Up Form */}
+      <div className="lg:w-1/2 flex items-center justify-center bg-gray-50 py-12 lg:py-0">
+        <Card className="w-full max-w-md mx-4 sm:mx-6" id="auth-form">
+          <CardContent className="p-8">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-900">
+                {authMode === "signin" ? "Sign In" : "Sign Up"}
+              </h2>
+              <p className="mt-2 text-sm text-gray-600">
+                {authMode === "signin"
+                  ? "Access your dashboard"
+                  : "Create your account"}
+              </p>
+            </div>
+            <Tabs
+              value={authMode}
+              onValueChange={(value) =>
+                setAuthMode(value as "signin" | "signup")
+              }
+              className="mt-6"
+            >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Sign In</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              </TabsList>
+              <TabsContent value="signin" className="mt-6">
+                <SignInPage />
+              </TabsContent>
+              <TabsContent value="signup" className="mt-6">
+                <SignUpPage />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

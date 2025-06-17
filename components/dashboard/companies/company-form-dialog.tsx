@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   Select,
-  SelectLabel,
   SelectItem,
   SelectContent,
   SelectValue,
@@ -25,12 +24,17 @@ import { Company, useCompanies } from "@/hooks/use-companies";
 import { toast } from "sonner";
 import { User } from "@/lib/db/schema";
 
+interface Admin {
+  id: string;
+  name: string;
+}
+
 interface CompanyFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   company?: Company | null;
   mode: "create" | "edit";
-  users: User[];
+  users?: Admin[]; // Allow undefined
 }
 
 export function CompanyFormDialog({
@@ -48,10 +52,13 @@ export function CompanyFormDialog({
     phone: "",
     address: "",
     logo: "",
-    ownerId: "user_GmcahzgG79rBLJZUoQC4H",
+    ownerId: "",
   });
 
   React.useEffect(() => {
+    // Log users to debug
+    console.log("CompanyFormDialog users:", users);
+
     if (company && mode === "edit") {
       setFormData({
         name: company.name || "",
@@ -59,7 +66,7 @@ export function CompanyFormDialog({
         phone: company.phone || "",
         address: company.address || "",
         logo: company.logo || "",
-        ownerId: company.ownerId || "user_GmcahzgG79rBLJZUoQC4H",
+        ownerId: company.ownerId || "",
       });
     } else {
       setFormData({
@@ -68,18 +75,20 @@ export function CompanyFormDialog({
         phone: "",
         address: "",
         logo: "",
-        ownerId: "user_GmcahzgG79rBLJZUoQC4H",
+        ownerId: users && users.length > 0 ? users[0].id : "", // Default to first user or empty
       });
     }
-  }, [company, mode]);
+  }, [company, mode, users]);
 
   const handleInputChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, ownerId: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,6 +96,14 @@ export function CompanyFormDialog({
 
     if (!formData.name.trim()) {
       toast("Company name is required");
+      return;
+    }
+
+    if (
+      !formData.ownerId ||
+      !users?.some((user) => user.id === formData.ownerId)
+    ) {
+      toast("Please select a valid company owner");
       return;
     }
 
@@ -106,6 +123,7 @@ export function CompanyFormDialog({
   };
 
   const isLoading = isCreating || isUpdating;
+  console.log(users);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -164,30 +182,35 @@ export function CompanyFormDialog({
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <SelectLabel className="text-right">
-                Owner of the company
-              </SelectLabel>
+              <Label htmlFor="ownerId" className="text-right">
+                Owner
+              </Label>
               <Select
                 value={formData.ownerId}
-                onValueChange={(value) =>
-                  handleInputChange({
-                    target: { name: "ownerId", value },
-                  } as React.ChangeEvent<HTMLSelectElement>)
-                }
+                onValueChange={handleSelectChange}
                 name="ownerId"
+                disabled={isLoading || !users || users.length === 0}
               >
                 <SelectTrigger className="col-span-3" id="ownerId">
                   <SelectValue placeholder="Select the company's owner" />
                 </SelectTrigger>
                 <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name || user.email}
-                    </SelectItem>
-                  ))}
+                  {users && users.length > 0 ? (
+                    users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    // Nothing rendered when no users are available
+                    <div className="px-4 py-2 text-sm text-muted-foreground">
+                      No users available
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
+
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="address" className="text-right">
                 Address

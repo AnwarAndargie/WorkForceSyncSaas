@@ -110,7 +110,9 @@ export default function DashboardPage() {
       <div className="container mx-auto py-10">
         <Card className="bg-red-50 text-red-600">
           <CardContent className="pt-6">
-            Error loading dashboard data
+            Error loading dashboard data: {dashboardError.message} ||{" "}
+            {dashboardError.details}
+            <p>Please wait us till your company is created.</p>
           </CardContent>
         </Card>
       </div>

@@ -24,9 +24,9 @@ export async function GET(request: NextRequest) {
       | "tenant_admin"
       | "employee";
 
-    if (!role) {
-      return createErrorResponse("Role required", 400, "MISSING_ROLE");
-    }
+    // if (!role) {
+    //   return createErrorResponse("Role required", 400, "MISSING_ROLE");
+    // }
 
     const userList = await db
       .select({
