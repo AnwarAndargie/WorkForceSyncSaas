@@ -1,6 +1,13 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { assignments, users, clients, events, branches } from "@/lib/db/schema";
+import {
+  assignments,
+  users,
+  clients,
+  events,
+  branches,
+  employeeBranches,
+} from "@/lib/db/schema";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -11,7 +18,10 @@ import {
 import { generateId } from "@/lib/db/utils";
 import { eq, desc, like, and, sql } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth/session";
-import { canPerformWriteOperation, checkClientAccess } from "@/lib/auth/authorization";
+import {
+  canPerformWriteOperation,
+  checkClientAccess,
+} from "@/lib/auth/authorization";
 
 /**
  * GET /api/assignments
@@ -32,13 +42,18 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     const conditions = [];
-    
+
     // Apply role-based filtering
     if (user.role === "tenant_admin" && user.tenantId) {
       // Tenant admin can see all assignments for their tenant
       conditions.push(eq(assignments.tenantId, user.tenantId));
       if (status) {
-        conditions.push(eq(assignments.status, status as "pending" | "accepted" | "rejected" | "completed"));
+        conditions.push(
+          eq(
+            assignments.status,
+            status as "pending" | "accepted" | "rejected" | "completed"
+          )
+        );
       }
       if (employeeId) {
         conditions.push(eq(assignments.employeeId, employeeId));
@@ -47,12 +62,17 @@ export async function GET(request: NextRequest) {
       // Employee can only see their own assignments
       conditions.push(eq(assignments.employeeId, user.id));
       if (status) {
-        conditions.push(eq(assignments.status, status as "pending" | "accepted" | "rejected" | "completed"));
+        conditions.push(
+          eq(
+            assignments.status,
+            status as "pending" | "accepted" | "rejected" | "completed"
+          )
+        );
       }
     } else {
       return createErrorResponse("Forbidden", 403, "FORBIDDEN");
     }
-    
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Get assignments with employee, client, event, and branch details
@@ -112,11 +132,19 @@ export async function POST(request: NextRequest) {
 
     // Only tenant_admin can create assignments
     if (user.role !== "tenant_admin" || !user.tenantId) {
-      return createErrorResponse("Forbidden: Only tenant admins can create assignments", 403, "FORBIDDEN");
+      return createErrorResponse(
+        "Forbidden: Only tenant admins can create assignments",
+        403,
+        "FORBIDDEN"
+      );
     }
 
     const body = await request.json();
-    const validationError = validateRequiredFields(body, ["employeeId", "eventId", "branchId"]);
+    const validationError = validateRequiredFields(body, [
+      "employeeId",
+      "eventId",
+      "branchId",
+    ]);
     if (validationError) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
@@ -131,7 +159,11 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (employee.length === 0) {
-      return createErrorResponse("Employee not found", 404, "EMPLOYEE_NOT_FOUND");
+      return createErrorResponse(
+        "Employee not found",
+        404,
+        "EMPLOYEE_NOT_FOUND"
+      );
     }
 
     // Verify event exists and belongs to the tenant
@@ -142,18 +174,28 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (event.length === 0) {
-      return createErrorResponse("Event not found or access denied", 404, "EVENT_NOT_FOUND");
+      return createErrorResponse(
+        "Event not found or access denied",
+        404,
+        "EVENT_NOT_FOUND"
+      );
     }
 
     // Verify branch exists and belongs to the tenant
     const branch = await db
       .select()
       .from(branches)
-      .where(and(eq(branches.id, branchId), eq(branches.tenantId, user.tenantId)))
+      .where(
+        and(eq(branches.id, branchId), eq(clients.tenantId, user.tenantId))
+      )
       .limit(1);
 
     if (branch.length === 0) {
-      return createErrorResponse("Branch not found or access denied", 404, "BRANCH_NOT_FOUND");
+      return createErrorResponse(
+        "Branch not found or access denied",
+        404,
+        "BRANCH_NOT_FOUND"
+      );
     }
 
     const newAssignment = {
@@ -205,4 +247,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleDatabaseError(error);
   }
-} 
+}

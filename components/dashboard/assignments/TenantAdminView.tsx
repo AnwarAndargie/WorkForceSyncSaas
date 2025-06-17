@@ -128,7 +128,8 @@ export function TenantAdminView({ user }: TenantAdminViewProps) {
       <div className="flex gap-4">
         <Button
           onClick={() => setShowCreateEvent(true)}
-          className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 "
+          variant="outline"
+          className="flex items-center gap-2 cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           Create Event
@@ -136,7 +137,7 @@ export function TenantAdminView({ user }: TenantAdminViewProps) {
         <Button
           onClick={() => setShowCreateAssignment(true)}
           variant="outline"
-          className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 "
+          className="flex items-center gap-2 cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           Create Assignment

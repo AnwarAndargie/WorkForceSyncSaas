@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { events, branches, clients } from "@/lib/db/schema";
+import { events, tenants, branches, clients } from "@/lib/db/schema";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -9,22 +9,14 @@ import {
   createPaginationMeta,
 } from "@/lib/api/response";
 import { generateId } from "@/lib/db/utils";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, like, and, sql } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth/session";
 
-/**
- * GET /api/events
- * List events for tenant admin
- */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser(request);
-    if (!user) {
+    const sessionUser = await getSessionUser(request);
+    if (!sessionUser) {
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
-    }
-
-    if (user.role !== "tenant_admin" || !user.tenantId) {
-      return createErrorResponse("Forbidden: Only tenant admins can view events", 403, "FORBIDDEN");
     }
 
     const { searchParams } = new URL(request.url);
@@ -32,20 +24,56 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 100);
     const status = searchParams.get("status");
     const branchId = searchParams.get("branchId");
+    const search = searchParams.get("search");
     const offset = (page - 1) * limit;
 
-    const conditions = [eq(events.tenantId, user.tenantId)];
-    
+    let tenantId: string | undefined;
+
+    if (sessionUser.role === "super_admin") {
+      const requestedTenantId = searchParams.get("tenantId");
+      if (!requestedTenantId) {
+        return createErrorResponse(
+          "tenantId required for super_admin",
+          400,
+          "TENANT_ID_REQUIRED"
+        );
+      }
+      tenantId = requestedTenantId;
+    } else if (sessionUser.role === "tenant_admin") {
+      if (!sessionUser.tenantId) {
+        return createErrorResponse(
+          "User not associated with a tenant",
+          403,
+          "NO_TENANT_ACCESS"
+        );
+      }
+      tenantId = sessionUser.tenantId;
+    } else {
+      return createErrorResponse(
+        "Insufficient permissions",
+        403,
+        "INSUFFICIENT_PERMISSIONS"
+      );
+    }
+
+    const conditions = [eq(clients.tenantId, tenantId)];
     if (status) {
-      conditions.push(eq(events.status, status as "scheduled" | "ongoing" | "completed" | "cancelled"));
+      conditions.push(
+        eq(
+          events.status,
+          status as "scheduled" | "ongoing" | "completed" | "cancelled"
+        )
+      );
     }
     if (branchId) {
       conditions.push(eq(events.branchId, branchId));
     }
-    
-    const whereClause = and(...conditions);
+    if (search) {
+      conditions.push(like(events.name, `%${search}%`));
+    }
 
-    // Get events with branch and client details
+    const whereClause = conditions.length ? and(...conditions) : undefined;
+
     const eventsList = await db
       .select({
         id: events.id,
@@ -62,16 +90,17 @@ export async function GET(request: NextRequest) {
         clientName: clients.name,
       })
       .from(events)
-      .leftJoin(branches, eq(events.branchId, branches.id))
-      .leftJoin(clients, eq(events.clientId, clients.id))
+      .innerJoin(branches, eq(events.branchId, branches.id))
+      .innerJoin(clients, eq(events.clientId, clients.id))
       .where(whereClause)
       .orderBy(desc(events.startTime))
       .limit(limit)
       .offset(offset);
 
     const [{ count }] = await db
-      .select({ count: sql`COUNT(*)`.mapWith(Number) })
+      .select({ count: sql`count(*)`.mapWith(Number) })
       .from(events)
+      .innerJoin(clients, eq(events.clientId, clients.id))
       .where(whereClause);
 
     const meta = createPaginationMeta(count, page, limit);
@@ -81,68 +110,139 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * POST /api/events
- * Create a new event (tenant admin only)
- */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser(request);
-    if (!user) {
+    const sessionUser = await getSessionUser(request);
+    if (!sessionUser) {
       return createErrorResponse("Unauthorized", 401, "UNAUTHORIZED");
     }
 
-    if (user.role !== "tenant_admin" || !user.tenantId) {
-      return createErrorResponse("Forbidden: Only tenant admins can create events", 403, "FORBIDDEN");
+    let tenantId: string;
+
+    if (sessionUser.role === "super_admin") {
+      const body = await request.json();
+      const requestedTenantId = body.tenantId;
+      if (!requestedTenantId) {
+        return createErrorResponse(
+          "tenantId required for super_admin",
+          400,
+          "TENANT_ID_REQUIRED"
+        );
+      }
+      tenantId = requestedTenantId;
+    } else if (sessionUser.role === "tenant_admin") {
+      if (!sessionUser.tenantId) {
+        return createErrorResponse(
+          "User not associated with a tenant",
+          403,
+          "NO_TENANT_ACCESS"
+        );
+      }
+      tenantId = sessionUser.tenantId;
+    } else {
+      return createErrorResponse(
+        "Insufficient permissions",
+        403,
+        "INSUFFICIENT_PERMISSIONS"
+      );
     }
 
     const body = await request.json();
-    const validationError = validateRequiredFields(body, ["name", "startTime", "endTime", "branchId", "clientId"]);
+    const validationError = validateRequiredFields(body, [
+      "name",
+      "startTime",
+      "endTime",
+      "branchId",
+      "clientId",
+    ]);
     if (validationError) {
       return createErrorResponse(validationError, 400, "VALIDATION_ERROR");
     }
 
     const { name, description, startTime, endTime, branchId, clientId } = body;
 
-    // Verify branch exists and belongs to the tenant
-    const branch = await db
+    // Validate dates
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return createErrorResponse("Invalid date format", 400, "INVALID_DATE");
+    }
+    if (end <= start) {
+      return createErrorResponse(
+        "End time must be after start time",
+        400,
+        "INVALID_TIME_RANGE"
+      );
+    }
+
+    // Verify tenant exists
+    const [tenant] = await db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1);
+    if (!tenant) {
+      return createErrorResponse("Tenant not found", 404, "TENANT_NOT_FOUND");
+    }
+
+    // Verify branch exists and belongs to tenant
+    const [branch] = await db
       .select()
       .from(branches)
-      .where(and(eq(branches.id, branchId), eq(branches.tenantId, user.tenantId)))
+      .innerJoin(clients, eq(branches.clientId, clients.id))
+      .where(and(eq(branches.id, branchId), eq(clients.tenantId, tenantId)))
       .limit(1);
-
-    if (branch.length === 0) {
-      return createErrorResponse("Branch not found or access denied", 404, "BRANCH_NOT_FOUND");
+    if (!branch) {
+      return createErrorResponse(
+        "Branch not found or access denied",
+        404,
+        "BRANCH_NOT_FOUND"
+      );
     }
 
-    // Verify client exists and belongs to the tenant
-    const client = await db
+    // Verify client exists and belongs to tenant
+    const [client] = await db
       .select()
       .from(clients)
-      .where(and(eq(clients.id, clientId), eq(clients.tenantId, user.tenantId)))
+      .where(and(eq(clients.id, clientId), eq(clients.tenantId, tenantId)))
       .limit(1);
-
-    if (client.length === 0) {
-      return createErrorResponse("Client not found or access denied", 404, "CLIENT_NOT_FOUND");
+    if (!client) {
+      return createErrorResponse(
+        "Client not found or access denied",
+        404,
+        "CLIENT_NOT_FOUND"
+      );
     }
 
-    const newEvent = {
-      id: generateId("event"),
+    // Optional: Check for duplicate event name within client
+    const existingEvent = await db
+      .select()
+      .from(events)
+      .where(and(eq(events.clientId, clientId), eq(events.name, name)))
+      .limit(1);
+    if (existingEvent.length > 0) {
+      return createErrorResponse(
+        "Event name already exists for this client",
+        400,
+        "DUPLICATE_EVENT_NAME"
+      );
+    }
+
+    const eventId = generateId("event");
+    await db.insert(events).values({
+      id: eventId,
       name,
       description: description || null,
-      startTime: new Date(startTime),
-      endTime: new Date(endTime),
+      startTime: start,
+      endTime: end,
       branchId,
       clientId,
-      tenantId: user.tenantId,
-      status: "scheduled" as const,
+      tenantId,
+      status: "scheduled",
       createdAt: new Date(),
-    };
+    });
 
-    await db.insert(events).values(newEvent);
-
-    // Return the created event with joined data
-    const createdEvent = await db
+    const [createdEvent] = await db
       .select({
         id: events.id,
         name: events.name,
@@ -151,6 +251,7 @@ export async function POST(request: NextRequest) {
         endTime: events.endTime,
         branchId: events.branchId,
         clientId: events.clientId,
+        tenantId: events.tenantId,
         status: events.status,
         createdAt: events.createdAt,
         branchName: branches.name,
@@ -158,13 +259,13 @@ export async function POST(request: NextRequest) {
         clientName: clients.name,
       })
       .from(events)
-      .leftJoin(branches, eq(events.branchId, branches.id))
-      .leftJoin(clients, eq(events.clientId, clients.id))
-      .where(eq(events.id, newEvent.id))
+      .innerJoin(branches, eq(events.branchId, branches.id))
+      .innerJoin(clients, eq(events.clientId, clients.id))
+      .where(eq(events.id, eventId))
       .limit(1);
 
-    return createSuccessResponse(createdEvent[0], 201);
+    return createSuccessResponse(createdEvent, 201);
   } catch (error) {
     return handleDatabaseError(error);
   }
-} 
+}
