@@ -62,7 +62,7 @@ export function AppSidebar({ user }: { user: SessionUser }) {
   const isEmployee = user.role === "employee";
 
   const navItems = [
-    { href: "/dashboard", label: "Overview", icon: Home, visible: true },
+    { href: "/dashboard", label: "Overview", icon: Home, visible: !isEmployee },
     {
       href: "/dashboard/companies",
       label: "Companies",
@@ -119,7 +119,7 @@ export function AppSidebar({ user }: { user: SessionUser }) {
     },
     {
       href: "/dashboard/plans",
-      label: "Subscription",
+      label: "Subscription Plans",
       icon: Container,
       visible: isSuperAdmin || isOrgAdmin,
     },
@@ -127,12 +127,6 @@ export function AppSidebar({ user }: { user: SessionUser }) {
       href: "/dashboard/settings",
       label: "Settings",
       icon: Settings,
-      visible: true,
-    },
-    {
-      href: "/dashboard/security",
-      label: "Security",
-      icon: Shield,
       visible: true,
     },
   ].filter((item) => item.visible);
