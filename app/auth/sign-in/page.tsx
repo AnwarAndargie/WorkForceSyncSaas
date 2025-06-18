@@ -7,7 +7,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 
@@ -17,7 +23,7 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  
+
   const { login } = useAuth();
   const router = useRouter();
 
@@ -41,10 +47,12 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center  justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Sign in</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">
+            Sign in
+          </CardTitle>
           <CardDescription className="text-center">
             Enter your email and password to access your account
           </CardDescription>
@@ -56,7 +64,7 @@ export default function SignInPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -69,7 +77,7 @@ export default function SignInPage() {
                 disabled={isLoading}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
@@ -98,7 +106,7 @@ export default function SignInPage() {
                 </Button>
               </div>
             </div>
-            
+
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
                 <>
@@ -110,10 +118,13 @@ export default function SignInPage() {
               )}
             </Button>
           </form>
-          
+
           <div className="mt-6 text-center text-sm">
             <span className="text-gray-600">Don't have an account? </span>
-            <Link href="/auth/sign-up" className="font-medium text-primary hover:underline">
+            <Link
+              href="/auth/sign-up"
+              className="font-medium text-primary hover:underline"
+            >
               Sign up
             </Link>
           </div>

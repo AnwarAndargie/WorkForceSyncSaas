@@ -1,6 +1,12 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/drizzle";
-import { clients, tenants, users, TenantMembers } from "@/lib/db/schema";
+import {
+  clients,
+  tenants,
+  users,
+  TenantMembers,
+  contracts,
+} from "@/lib/db/schema";
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -94,6 +100,7 @@ export async function GET(request: NextRequest) {
  * POST /api/clients
  * Create a new client (tenant isolated)
  */
+
 export async function POST(request: NextRequest) {
   try {
     const sessionUser = await getSessionUser(request);
@@ -190,13 +197,31 @@ export async function POST(request: NextRequest) {
     }
 
     const clientId = generateId("client");
-    await db.insert(clients).values({
-      id: clientId,
-      name,
-      phone,
-      address,
-      adminId,
-      tenantId,
+    const contractId = generateId("contract");
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    endDate.setFullYear(startDate.getFullYear() + 1);
+
+    // Perform client and contract insertion in a transaction
+    await db.transaction(async (tx) => {
+      await tx.insert(clients).values({
+        id: clientId,
+        name,
+        phone,
+        address,
+        adminId,
+        tenantId,
+      });
+
+      await tx.insert(contracts).values({
+        id: contractId,
+        tenantId,
+        clientId,
+        startDate,
+        endDate,
+        terms: "Standard contract terms",
+        status: "active",
+      });
     });
 
     const [createdClient] = await db
