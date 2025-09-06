@@ -5,9 +5,6 @@ This is a semeseter project for the course databasa systems.
 
 
 ## Features
-
-- Marketing landing page (`/`) with animated Terminal element
-- Pricing page (`/pricing`) which connects to Stripe Checkout
 - Dashboard pages with CRUD operations on users/teams
 - Basic RBAC with Owner and Member roles
 - Subscription management with Stripe Customer Portal
@@ -73,14 +70,6 @@ You can listen for Stripe webhooks locally through their CLI to handle subscript
 ```bash
 stripe listen --forward-to localhost:3000/api/stripe/webhook
 ```
-
-## Testing Payments
-
-To test Stripe payments, use the following test card details:
-
-- Card Number: `4242 4242 4242 4242`
-- Expiration: Any future date
-- CVC: Any 3-digit number
 
 ## Going to Production
 
